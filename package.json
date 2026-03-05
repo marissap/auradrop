@@ -1,0 +1,14 @@
+{
+	"name": "auradrop",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev"
+	},
+	"devDependencies": {
+		"@types/node": "^25.3.3",
+		"wrangler": "^4.70.0"
+	}
+}

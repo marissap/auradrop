@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraDrop</title>
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --border: #e8e8e8;
+
+  --green: #39ff14;
+  --blue:  #00e5ff;
+
+  --green-glow: rgba(57,255,20,0.4);
+  --blue-glow: rgba(0,229,255,0.4);
+
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+}
+
+#app {
+  max-width: 520px;
+  margin: auto;
+  padding: 24px;
+}
+
+/* Screens */
+.screen { display: none; }
+.screen.active { display: block; animation: fadeIn 0.4s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Headings */
+h1 {
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+h1 em {
+  color: var(--green);
+  text-shadow: 0 0 6px var(--green-glow);
+  font-style: normal;
+}
+
+p {
+  margin-bottom: 24px;
+  color: #666;
+}
+
+/* Inputs */
+.field { margin-bottom: 16px; }
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+/* Buttons */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--green), #8aff6b);
+  border: none;
+  padding: 12px;
+  width: 100%;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px var(--green-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px var(--green-glow);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-add,
+.send-btn {
+  background: linear-gradient(135deg, var(--blue), #6fffff);
+  border: none;
+  padding: 8px 8px;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px var(--blue-glow);
+}
+
+/* Card Blocks */
+.contacts-section,
+.drop-zone,
+.peer-card,
+.offer-sheet {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.peer-card:hover {
+  border-color: var(--blue);
+  box-shadow: 0 4px 18px var(--blue-glow);
+  transform: translateY(-2px);
+}
+
+/* Drop zone */
+.drop-zone {
+  text-align: center;
+  background: linear-gradient(180deg, #ffffff, #f9f9f9);
+}
+
+.drop-zone.dragover {
+  border-color: var(--green);
+  box-shadow: 0 0 18px var(--green-glow);
+}
+
+.drop-zone.has-file {
+  border-color: var(--green);
+  background: linear-gradient(180deg, #ffffff, #f4fff1);
+}
+
+/* Peer Avatar */
+.peer-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--blue), #6fffff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 12px;
+  color: #000;
+  box-shadow: 0 0 10px var(--blue-glow);
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.connection-pill {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.connection-pill.live {
+  border-color: var(--green);
+  color: var(--green);
+  box-shadow: 0 0 10px var(--green-glow);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 10px var(--green-glow); }
+  50% { box-shadow: 0 0 20px var(--green-glow); }
+}
+
+/* Overlay */
+#offer-overlay,
+#transfer-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.96), rgba(245,245,245,0.98));
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+#offer-overlay.visible,
+#transfer-overlay.visible {
+  display: flex;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Progress */
+.progress-track {
+  height: 6px;
+  background: #eee;
+  margin-top: 16px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  box-shadow: 0 0 10px var(--green-glow);
+  transition: width 0.25s ease;
+}
+
+/* Toast */
+#toast-wrap {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.toast {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  animation: toastIn 0.3s ease;
+}
+
+.toast.success {
+  border-color: var(--green);
+  box-shadow: 0 0 10px var(--green-glow);
+}
+
+.toast.info {
+  border-color: var(--blue);
+  box-shadow: 0 0 10px var(--blue-glow);
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="screen active" id="screen-setup">
+    <div class="setup-hero">
+      <h1>aura drop</h1>
+      <p>working towards a better airdrop.</p>
+    </div>
+
+    <div class="setup-form">
+      <div class="field">
+        <label>name</label>
+        <input type="text" id="input-name" placeholder="e.g. marissa" maxlength="24" autocomplete="off">
+      </div>
+
+      <button class="btn-primary" id="btn-go" onclick="startSession()" disabled>find nearby contacts →</button>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-logo">◎</div>
+        <span class="topbar-name" id="topbar-name">aura drop</span>
+      </div>
+      <div class="connection-pill" id="conn-pill">
+        <div class="conn-dot"></div>
+        <span id="conn-label">connecting</span>
+      </div>
+    </div>
+
+    <div class="drop-zone-wrap">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-idle">
+          <span class="drop-icon">⌁</span>
+          <div class="drop-title">drop a file</div>
+          <div class="drop-sub">tap to browse · any file type</div>
+        </div>
+        <div class="file-selected">
+          <span class="drop-icon">◈</span>
+          <div class="file-name" id="file-name-display"></div>
+          <div class="file-size" id="file-size-display"></div>
+          <button class="file-clear" onclick="clearFile(event)">clear</button>
+        </div>
+      </div>
+      <input type="file" id="file-input" onchange="handleFileSelect(this)">
+    </div>
+
+    <div class="section-head">
+      <span class="section-label">nearby contacts for</span>
+      <span class="cell-badge" id="cell-badge">—</span>
+    </div>
+
+    <div class="nearby-list" id="nearby-list">
+      <div class="nearby-empty">
+        <div class="nearby-empty-icon">📡</div>
+        <p>searching for nearby trusted contacts…</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="offer-overlay">
+    <div class="offer-sheet">
+      <div class="offer-from" id="offer-from">incoming drop</div>
+      <div class="offer-title" id="offer-filename">file.zip</div>
+      <div class="offer-meta" id="offer-meta">0 KB · from someone</div>
+      <div class="offer-actions">
+        <button class="btn-accept" onclick="acceptOffer()">accept</button>
+        <button class="btn-reject" onclick="rejectOffer()">decline</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="transfer-overlay">
+    <div class="transfer-anim" id="transfer-anim">
+      <span class="transfer-icon" id="transfer-icon">⌁</span>
+    </div>
+    <div class="transfer-label" id="transfer-label">sending</div>
+    <div class="transfer-filename" id="transfer-filename">file.zip</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-pct" id="progress-pct">0%</div>
+  </div>
+
+  <div id="toast-wrap"></div>
+</div>
+
+<script>
+const WORKER_URL = "https://auradrop.marissaphul.workers.dev";
+const WS_URL = WORKER_URL.replace("https://", "wss://").replace("http://", "ws://");
+
+
+let myHash = null;
+let myName = "";
+let cellWs = null;
+let agentWs = null;
+let nearbyPeers = [];
+let selectedFile = null;
+let incomingOffer = null;
+let inboundChunks = {}; // transferId: { chunks[], fileName, total }
+let watchId = null;
+let currentGeohash = null;
+let lat = null;
+let lang = null;
+
+function encodeGeohash(lat, lng, precision = 5) {
+  const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+  let idx = 0, bit = 0, evenBit = true, geohash = "";
+  let [latMin, latMax, lngMin, lngMax] = [-90, 90, -180, 180];
+  while (geohash.length < precision) {
+    if (evenBit) {
+      const m = (lngMin + lngMax) / 2;
+      lng >= m ? (idx = idx * 2 + 1, lngMin = m) : (idx *= 2, lngMax = m);
+    } else {
+      const m = (latMin + latMax) / 2;
+      lat >= m ? (idx = idx * 2 + 1, latMin = m) : (idx *= 2, latMax = m);
+    }
+    evenBit = !evenBit;
+    if (++bit === 5) { geohash += BASE32[idx]; bit = 0; idx = 0; }
+  }
+  return geohash;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+
+document.getElementById("input-name").addEventListener("input", () => {
+  document.getElementById("btn-go").disabled = 
+    document.getElementById("input-name").value.trim().length === 0;
+});
+
+async function startSession() {
+  myName = document.getElementById("input-name").value.trim();
+  myHash = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+
+
+  showScreen("main");
+  document.getElementById("topbar-name").textContent = myName;
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        lat = pos.coords.latitude;
+        long = pos.coords.longitude;
+        onLocation(lat, long);
+        connectAgent();
+      }, () => {
+        toast("GPS permission denied — allow location access and try again", "error");
+        showScreen("setup");
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  } else {
+    toast("GPS not supported on this browser", "error");
+    showScreen("setup");
+  }
+}
+
+function onLocation(lat, lng) {
+  const geohash = encodeGeohash(lat, lng);
+  document.getElementById("cell-badge").textContent = geohash;
+
+  if (currentGeohash !== geohash) {
+    currentGeohash = geohash;
+    connectCell(lat, lng);
+  }
+
+  if (!watchId && navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(pos => {
+      const newHash = encodeGeohash(lat, long);
+      if (newHash !== currentGeohash) onLocation(lat, long);
+    }, null, { enableHighAccuracy: true, maximumAge: 10000 });
+  }
+}
+
+function connectCell(lat, lng) {
+  if (cellWs) cellWs.close();
+
+  cellWs = new WebSocket(`${WS_URL}/cell?lat=${lat}&lng=${lng}`);
+
+  cellWs.onopen = () => {
+    sendCellUpdate();
+    setConnected(true);
+  };
+
+  cellWs.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === "presence") {
+      nearbyPeers = msg.peers || [];
+      renderNearby();
+    }
+  };
+
+  cellWs.onclose = () => setConnected(false);
+  cellWs.onerror = () => setConnected(false);
+
+  setInterval(() => {
+    if (cellWs?.readyState === WebSocket.OPEN) {
+      cellWs.send(JSON.stringify({ type: "ping", hashedID: myHash }));
+    }
+  }, 30000);
+}
+
+function sendCellUpdate() {
+    if (lat === null || long === null) {
+        toast("No GPS coords found — try again", "error");
+        showScreen("setup");
+    };
+    cellWs.send(JSON.stringify({
+        type: "join",
+        hashedID: myHash,
+        lat: lat,
+        lng: long,
+        displayName: myName,
+    }));
+}
+
+function connectAgent() {
+  agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
+
+  agentWs.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+
+    if (msg.type === "state") handleStateUpdate(msg.state);
+    if (msg.type === "chunk") handleChunk(msg);
+    if (msg.type === "transfer_complete") handleTransferComplete(msg);
+  };
+}
+
+function handleStateUpdate(state) {
+  if (state.status === "receiving" && state.incomingOffer) {
+    showOffer(state.incomingOffer);
+  }
+
+  if (state.status === "transferring" && state.activeTransfer) {
+    showTransferProgress(state.activeTransfer);
+  }
+
+  if (state.status === "idle") {
+    hideOfferOverlay();
+    hideTransferOverlay();
+  }
+}
+
+const dropZone = document.getElementById("drop-zone");
+
+dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) setFile(file);
+});
+
+function handleFileSelect(input) {
+  if (input.files[0]) setFile(input.files[0]);
+}
+
+function setFile(file) {
+  selectedFile = file;
+  dropZone.classList.add("has-file");
+  document.getElementById("file-name-display").textContent = file.name;
+  document.getElementById("file-size-display").textContent = formatBytes(file.size);
+  renderNearby();
+}
+
+function clearFile(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  dropZone.classList.remove("has-file");
+  document.getElementById("file-input").value = "";
+  renderNearby();
+}
+
+function renderNearby() {
+  const list = document.getElementById("nearby-list");
+
+  if (nearbyPeers.length === 0) {
+    list.innerHTML = `
+      <div class="nearby-empty">
+        <div class="nearby-empty-icon">📡</div>
+        <p>No one nearby yet.<br>Ask them to open AuraDrop.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = nearbyPeers.map((peer, i) => {
+    const initials = peer.displayName.slice(0, 2).toUpperCase();
+    const hasFile = !!selectedFile;
+    return `
+      <div class="peer-card ${hasFile ? '' : 'no-file'}" onclick="${hasFile ? `sendToPeer('${peer.hashedID}')` : ''}">
+        <div class="peer-avatar av-${i % 5}">${initials}</div>
+        <div class="peer-info">
+          <div class="peer-name">${peer.displayName}</div>
+          <div class="peer-meta">${peer.hashedID.slice(0,8)}… · nearby</div>
+        </div>
+        ${hasFile
+          ? `<button class="send-btn" onclick="sendToPeer('${peer.hashedID}')">Send ⌁</button>`
+          : `<span style="font-family:var(--mono);font-size:0.65rem;color:var(--dim)">select file</span>`
+        }
+      </div>`;
+  }).join("");
+}
+
+async function sendToPeer(targetHash) {
+  if (!selectedFile) { toast("Select a file first", "error"); return; }
+
+  toast(`Uploading ${selectedFile.name}…`, "info");
+
+  const CHUNK = 64 * 1024;
+  const chunks = [];
+  for (let i = 0; i < selectedFile.size; i += CHUNK) {
+    const slice = selectedFile.slice(i, i + CHUNK);
+    const buf = await slice.arrayBuffer();
+    chunks.push(btoa(String.fromCharCode(...new Uint8Array(buf))));
+  }
+
+  const res = await fetch(`${WORKER_URL}/agent/${myHash}/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileName: selectedFile.name, fileSize: selectedFile.size, chunks }),
+  });
+
+  const { transferId } = await res.json();
+
+  agentWs.send(JSON.stringify({
+    type: "initiate_drop",
+    targetHash,
+    transferId,
+    fileName: selectedFile.name,
+    fileSize: selectedFile.size,
+  }));
+
+  toast(`Waiting for ${nearbyPeers.find(p => p.hashedID === targetHash)?.displayName ?? "them"} to accept…`, "info");
+}
+
+function handleChunk({ index, data, total, fileName, transferId }) {
+  if (!inboundChunks[transferId]) {
+    inboundChunks[transferId] = { chunks: [], fileName, total };
+  }
+  inboundChunks[transferId].chunks[index] = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+
+  const pct = Math.round((index + 1) / total * 100);
+  document.getElementById("progress-fill").style.width = pct + "%";
+  document.getElementById("progress-pct").textContent = pct + "%";
+}
+
+function handleTransferComplete({ transferId, fileName }) {
+  const transfer = inboundChunks[transferId];
+  if (!transfer) return;
+
+  const blob = new Blob(transfer.chunks, { type: "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = transfer.fileName || fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  delete inboundChunks[transferId];
+  hideTransferOverlay();
+  toast(`✓ ${transfer.fileName} saved!`, "success");
+}
+
+function showOffer(offer) {
+  incomingOffer = offer;
+  document.getElementById("offer-from").textContent = `from ${offer.fromHash.slice(0,8)}…`;
+  document.getElementById("offer-filename").textContent = offer.fileName;
+  document.getElementById("offer-meta").textContent = `${formatBytes(offer.fileSize)}`;
+
+  const overlay = document.getElementById("offer-overlay");
+  overlay.classList.add("visible");
+
+  showTransferProgress({ direction: "receiving", fileName: offer.fileName, totalBytes: offer.fileSize, bytesReceived: 0, transferId: offer.transferId });
+}
+
+function acceptOffer() {
+  if (!incomingOffer) return;
+  hideOfferOverlay();
+  agentWs.send(JSON.stringify({
+    type: "accept_drop",
+    transferId: incomingOffer.transferId,
+    fromAgentId: incomingOffer.fromHash,
+  }));
+}
+
+function rejectOffer() {
+  if (!incomingOffer) return;
+  agentWs.send(JSON.stringify({ type: "reject_drop" }));
+  incomingOffer = null;
+  hideOfferOverlay();
+  hideTransferOverlay();
+}
+
+function hideOfferOverlay() {
+  document.getElementById("offer-overlay").classList.remove("visible");
+}
+
+function showTransferProgress(transfer) {
+  const overlay = document.getElementById("transfer-overlay");
+  const anim = document.getElementById("transfer-anim");
+  const fill = document.getElementById("progress-fill");
+  const isSending = transfer.direction === "sending";
+
+  document.getElementById("transfer-label").textContent = isSending ? "sending" : "receiving";
+  document.getElementById("transfer-filename").textContent = transfer.fileName;
+  document.getElementById("transfer-icon").textContent = isSending ? "⌁" : "◈";
+
+  anim.className = `transfer-anim ${isSending ? "sending" : "receiving"}`;
+  fill.className = `progress-fill ${isSending ? "sending" : "receiving"}`;
+
+  const pct = transfer.totalBytes > 0
+    ? Math.round(transfer.bytesReceived / transfer.totalBytes * 100)
+    : 0;
+  fill.style.width = pct + "%";
+  document.getElementById("progress-pct").textContent = pct + "%";
+
+  overlay.classList.add("visible");
+}
+
+function hideTransferOverlay() {
+  document.getElementById("transfer-overlay").classList.remove("visible");
+}
+
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(`screen-${name}`).classList.add("active");
+}
+
+function setConnected(connected) {
+  const pill = document.getElementById("conn-pill");
+  const label = document.getElementById("conn-label");
+  pill.className = `connection-pill${connected ? " live" : ""}`;
+  label.textContent = connected ? "live" : "offline";
+}
+
+function toast(msg, type = "info") {
+  const wrap = document.getElementById("toast-wrap");
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+</script>
+</body>
+</html>
