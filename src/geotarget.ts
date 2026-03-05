@@ -1,6 +1,6 @@
 interface Peer {
   ws: WebSocket;
-  hashedPhone: string;
+  hashedID: string;
   displayName: string;
   lastSeen: number;
 }
@@ -35,17 +35,17 @@ export class GeoTarget implements DurableObject {
     if (msg.type === "join") {
       const peer: Peer = {
         ws,
-        hashedPhone: msg.hashedPhone,
+        hashedID: msg.hashedID,
         displayName: msg.displayName ?? "?",
         lastSeen: Date.now(),
       };
       
-      this.peers.set(msg.hashedPhone, peer);
+      this.peers.set(msg.hashedID, peer);
       this.broadcastPresence();
     }
 
     if (msg.type === "ping") {
-      const peer = this.peers.get(msg.hashedPhone);
+      const peer = this.peers.get(msg.hashedID);
       if (peer) peer.lastSeen = Date.now();
     }
   }
@@ -58,14 +58,17 @@ export class GeoTarget implements DurableObject {
   }
 
   private broadcastPresence(): void {
+    console.log("broadcastPresence called, peers:", this.peers.size)
     const now = Date.now();
     for (const [id, p] of this.peers)
       if (now - p.lastSeen > 300_000) this.peers.delete(id);
 
     for (const viewer of this.peers.values()) {
-    const visible = [...this.peers.values()]
-        .filter(o => o.hashedPhone !== viewer.hashedPhone)
-        .map(p => ({ hashedPhone: p.hashedPhone, displayName: p.displayName }))
+        const visible = [...this.peers.values()]
+        .filter(o => o.hashedID !== viewer.hashedID)
+        .map(p => ({ hashedID: p.hashedID, displayName: p.displayName }))
+
+        console.log("sending to", viewer.displayName, "visible peers:", visible.length)
 
         try { viewer.ws.send(JSON.stringify({ type: "presence", peers: visible, cellCount: this.peers.size })) } catch {}
     }

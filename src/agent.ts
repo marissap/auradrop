@@ -54,16 +54,23 @@ export class AuraDropAgent implements DurableObject {
     const url = new URL(req.url);
     const cors = { "Access-Control-Allow-Origin": "*" };
 
-    // WebSocket upgrade — browser connecting to its own agent
     if (req.headers.get("Upgrade") === "websocket") {
-      const { 0: client, 1: server } = new WebSocketPair();
-      this.ctx.acceptWebSocket(server);
-      this.connections.add(server);
-      server.send(JSON.stringify({ type: "state", state: this.state }));
-      return new Response(null, { status: 101, webSocket: client });
+        const { 0: client, 1: server } = new WebSocketPair();
+        server.accept();
+        this.connections.add(server);
+        server.send(JSON.stringify({ type: "state", state: this.state }));
+
+        server.addEventListener("message", (evt) => {
+            this.webSocketMessage(server, evt.data as string);
+        });
+
+        server.addEventListener("close", () => {
+            this.connections.delete(server);
+        });
+
+        return new Response(null, { status: 101, webSocket: client });
     }
 
-    // POST /upload — sender uploads file chunks to their own agent
     if (url.pathname.endsWith("/upload") && req.method === "POST") {
       const { fileName, fileSize, chunks } = await req.json() as { fileName: string; fileSize: number; chunks: string[] };
       const transferId = crypto.randomUUID();
@@ -71,7 +78,6 @@ export class AuraDropAgent implements DurableObject {
       return Response.json({ transferId }, { headers: cors });
     }
 
-    // GET /chunks/:transferId — receiver's agent fetches chunks from sender's agent
     const chunksMatch = url.pathname.match(/\/chunks\/(.+)/);
     if (chunksMatch) {
       const data = this.pendingChunks.get(chunksMatch[1]);
@@ -79,14 +85,12 @@ export class AuraDropAgent implements DurableObject {
       return Response.json(data, { headers: cors });
     }
 
-    // POST /rpc/requestConsent — called by the sender's agent (Agent-to-Agent RPC)
     if (url.pathname.endsWith("/rpc/requestConsent") && req.method === "POST") {
       const offer = await req.json() as Omit<TransferOffer, "expiresAt">;
       await this.requestConsent(offer);
       return new Response("ok", { headers: cors });
     }
 
-    // GET /history
     if (url.pathname.endsWith("/history")) {
       const rows = [...this.ctx.storage.sql.exec(
         "SELECT * FROM transfers ORDER BY completed_at DESC LIMIT 50"
@@ -102,7 +106,7 @@ export class AuraDropAgent implements DurableObject {
 
     switch (msg.type) {
       case "initiate_drop":
-        await this.initiateDrop(msg.targetHash as string, msg.transferId as string, msg.fileName as string, msg.fileSize as number);
+        await this.initiateDrop(msg.targetHash as string, msg.transferId as string, msg.fileName as string, msg.fileSize as number,  msg.myHash as string,);
         break;
       case "accept_drop":
         await this.acceptDrop(msg.transferId as string, msg.fromAgentId as string);
@@ -113,11 +117,6 @@ export class AuraDropAgent implements DurableObject {
     }
   }
 
-  async webSocketClose(ws: WebSocket): Promise<void> {
-    this.connections.delete(ws);
-  }
-
-  // ── setState: update state and push to all browser clients ────────
   private setState(newState: AgentState): void {
     this.state = newState;
     const msg = JSON.stringify({ type: "state", state: this.state });
@@ -126,19 +125,18 @@ export class AuraDropAgent implements DurableObject {
     }
   }
 
-  // ── requestConsent: called by sender's agent via HTTP RPC ─────────
   private async requestConsent(offer: Omit<TransferOffer, "expiresAt">): Promise<void> {
+    console.log("requestConsent called, connections:", this.connections.size)
     this.setState({
       ...this.state,
       status: "receiving",
       incomingOffer: { ...offer, expiresAt: Date.now() + 10 * 60 * 1000 },
     });
-    // Schedule auto-expiry via Durable Object alarm
+    console.log("state after requestConsent:", JSON.stringify(this.state))
     await this.ctx.storage.setAlarm(Date.now() + 10 * 60 * 1000);
     await this.ctx.storage.put("pendingExpiry", offer.transferId);
   }
 
-  // ── alarm: fires when offer TTL expires ───────────────────────────
   async alarm(): Promise<void> {
     const transferId = await this.ctx.storage.get<string>("pendingExpiry");
     if (this.state.incomingOffer?.transferId === transferId) {
@@ -146,19 +144,19 @@ export class AuraDropAgent implements DurableObject {
     }
   }
 
-  private async initiateDrop(targetHash: string, transferId: string, fileName: string, fileSize: number): Promise<void> {
-    // Look up receiver's agent by their hashed phone — Agent-to-Agent RPC
+  private async initiateDrop(targetHash: string, transferId: string, fileName: string, fileSize: number, fromHash: string,): Promise<void> {
+    console.log("initiateDrop called, targeting:", targetHash)
     const targetAgent = this.env.AURA_AGENT.get(this.env.AURA_AGENT.idFromName(targetHash));
-    await targetAgent.fetch(new Request("http://agent/rpc/requestConsent", {
+    const resp = await targetAgent.fetch(new Request("http://agent/rpc/requestConsent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromHash: this.ctx.id.toString(), fileName, fileSize, transferId }),
+      body: JSON.stringify({ fromHash, fileName, fileSize, transferId }),
     }));
+    console.log("requestConsent RPC response:", resp.status)
     this.setState({ ...this.state, status: "offering" });
   }
 
   private async acceptDrop(transferId: string, fromAgentId: string): Promise<void> {
-    // Fetch chunks from sender's agent
     const senderAgent = this.env.AURA_AGENT.get(this.env.AURA_AGENT.idFromName(fromAgentId));
     const resp = await senderAgent.fetch(new Request(`http://agent/chunks/${transferId}`));
     const { chunks, fileName, fileSize } = await resp.json() as PendingTransfer;
@@ -168,7 +166,6 @@ export class AuraDropAgent implements DurableObject {
       activeTransfer: { transferId, fileName, totalBytes: fileSize, bytesReceived: 0, direction: "receiving" },
     });
 
-    // Stream each chunk to connected browser clients
     for (let i = 0; i < chunks.length; i++) {
       const chunkMsg = JSON.stringify({ type: "chunk", index: i, data: chunks[i], total: chunks.length, fileName });
       for (const ws of this.connections) { try { ws.send(chunkMsg); } catch {} }
@@ -178,7 +175,6 @@ export class AuraDropAgent implements DurableObject {
       });
     }
 
-    // Log to SQL history
     this.ctx.storage.sql.exec(
       "INSERT INTO transfers VALUES (?, 'received', ?, ?, ?, ?, 'completed')",
       transferId, fromAgentId, fileName, fileSize, Date.now()

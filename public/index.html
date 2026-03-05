@@ -505,19 +505,23 @@ function connectAgent() {
 }
 
 function handleStateUpdate(state) {
-  if (state.status === "receiving" && state.incomingOffer) {
-    showOffer(state.incomingOffer);
-  }
+    console.log("state update received:", JSON.stringify(state))
+    if (state.status === "receiving" && state.incomingOffer) {
+        console.log("showing offer")
+        showOffer(state.incomingOffer);
+    }
 
-  if (state.status === "transferring" && state.activeTransfer) {
-    showTransferProgress(state.activeTransfer);
-  }
+    if (state.status === "transferring" && state.activeTransfer) {
+        console.log("transferring offer")
+        showTransferProgress(state.activeTransfer);
+    }
 
-  if (state.status === "idle") {
-    hideOfferOverlay();
-    hideTransferOverlay();
-  }
-}
+    if (state.status === "idle") {
+        console.log("idle offer")
+        hideOfferOverlay();
+        hideTransferOverlay();
+    }
+    }
 
 const dropZone = document.getElementById("drop-zone");
 
@@ -566,7 +570,7 @@ function renderNearby() {
     const initials = peer.displayName.slice(0, 2).toUpperCase();
     const hasFile = !!selectedFile;
     return `
-      <div class="peer-card ${hasFile ? '' : 'no-file'}" onclick="${hasFile ? `sendToPeer('${peer.hashedID}')` : ''}">
+      <div class="peer-card ${hasFile ? '' : 'no-file'}">
         <div class="peer-avatar av-${i % 5}">${initials}</div>
         <div class="peer-info">
           <div class="peer-name">${peer.displayName}</div>
@@ -607,6 +611,7 @@ async function sendToPeer(targetHash) {
     transferId,
     fileName: selectedFile.name,
     fileSize: selectedFile.size,
+    myHash,
   }));
 
   toast(`Waiting for ${nearbyPeers.find(p => p.hashedID === targetHash)?.displayName ?? "them"} to accept…`, "info");
@@ -640,15 +645,12 @@ function handleTransferComplete({ transferId, fileName }) {
 }
 
 function showOffer(offer) {
-  incomingOffer = offer;
-  document.getElementById("offer-from").textContent = `from ${offer.fromHash.slice(0,8)}…`;
-  document.getElementById("offer-filename").textContent = offer.fileName;
-  document.getElementById("offer-meta").textContent = `${formatBytes(offer.fileSize)}`;
-
-  const overlay = document.getElementById("offer-overlay");
-  overlay.classList.add("visible");
-
-  showTransferProgress({ direction: "receiving", fileName: offer.fileName, totalBytes: offer.fileSize, bytesReceived: 0, transferId: offer.transferId });
+  console.log("showOffer called")
+  const overlay = document.getElementById("offer-overlay")
+  console.log("overlay element:", overlay)
+  console.log("overlay classes before:", overlay.className)
+  overlay.classList.add("visible")
+  console.log("overlay classes after:", overlay.className)
 }
 
 function acceptOffer() {
@@ -659,6 +661,8 @@ function acceptOffer() {
     transferId: incomingOffer.transferId,
     fromAgentId: incomingOffer.fromHash,
   }));
+  
+  showTransferProgress({ direction: "receiving", fileName: offer.fileName, totalBytes: offer.fileSize, bytesReceived: 0, transferId: offer.transferId });
 }
 
 function rejectOffer() {
