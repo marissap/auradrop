@@ -35,20 +35,7 @@ export class AuraDropAgent implements DurableObject {
   private connections = new Set<WebSocket>();
   private pendingChunks = new Map<string, PendingTransfer>();
 
-  constructor(private ctx: DurableObjectState, private env: Env) {
-    // Create transfer history table on first run
-    ctx.storage.sql.exec(`
-      CREATE TABLE IF NOT EXISTS transfers (
-        id TEXT PRIMARY KEY,
-        direction TEXT,
-        peer_hash TEXT,
-        file_name TEXT,
-        file_size INTEGER,
-        completed_at INTEGER,
-        status TEXT
-      )
-    `);
-  }
+  constructor(private ctx: DurableObjectState, private env: Env) {}
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -91,11 +78,13 @@ export class AuraDropAgent implements DurableObject {
       return new Response("ok", { headers: cors });
     }
 
-    if (url.pathname.endsWith("/history")) {
-      const rows = [...this.ctx.storage.sql.exec(
-        "SELECT * FROM transfers ORDER BY completed_at DESC LIMIT 50"
-      )];
-      return Response.json(rows, { headers: cors });
+    if (url.pathname.endsWith("/rpc/transferComplete") && req.method === "POST") {
+        const { transferId } = await req.json() as { transferId: string };
+        this.pendingChunks.delete(transferId);
+        this.setState({ ...this.state, status: "idle" });
+        const msg = JSON.stringify({ type: "transfer_sent" });
+        for (const ws of this.connections) { try { ws.send(msg); } catch {} }
+        return new Response("ok", { headers: cors });
     }
 
     return new Response("AuraDrop Agent", { headers: cors });
@@ -112,6 +101,7 @@ export class AuraDropAgent implements DurableObject {
         await this.acceptDrop(msg.transferId as string, msg.fromAgentId as string);
         break;
       case "reject_drop":
+        // do i want to keep it so there is no feedback to sender if a drop is rejected???
         this.setState({ ...this.state, incomingOffer: null, status: "idle" });
         break;
     }
@@ -170,13 +160,18 @@ export class AuraDropAgent implements DurableObject {
       });
     }
 
-    this.ctx.storage.sql.exec(
-      "INSERT INTO transfers VALUES (?, 'received', ?, ?, ?, ?, 'completed')",
-      transferId, fromAgentId, fileName, fileSize, Date.now()
-    );
-
+    // notify receiver
     const doneMsg = JSON.stringify({ type: "transfer_complete", transferId, fileName });
-    for (const ws of this.connections) { try { ws.send(doneMsg); } catch {} }
+    for (const ws of this.connections) { try { ws.send(doneMsg); } catch {} }    
+
+    // notify sender
+    await senderAgent.fetch(new Request("http://agent/rpc/transferComplete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transferId }),
+    }));
+
     this.setState({ ...this.state, status: "idle", activeTransfer: null });
+
   }
 }

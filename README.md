@@ -6,6 +6,7 @@ Uses websockets, Cloudflare's Agent SDK and workers.
 TODO
 - [ ] Remove need to manually enter name and take from device
 - [ ] Integrate into device native share mechanism
+- [ ] The clear button does clear the file but not the UI text (this is really a message to break up the frontend code)
 - [ ] Fix sloppy UI bits
 - [ ] Better progress bar
 - [ ] Fix expiry (_i think it's not working_)

@@ -501,6 +501,17 @@ function connectAgent() {
         if (msg.type === "state") handleStateUpdate(msg.state);
         if (msg.type === "chunk") handleChunk(msg);
         if (msg.type === "transfer_complete") handleTransferComplete(msg);
+        if (msg.type === "transfer_sent") {
+            hideTransferOverlay();
+            clearFile(new Event("clear"));
+            toast("File sent!", "success");
+        }
+        // this isn't actually in use yet, i am deciding if i want to broadcast this to the peer
+        if (msg.type === "offer_declined") {
+            hideTransferOverlay();
+            // do i want to clear the file or let the user try send it again??
+            toast("Declined", "error");
+        }
     };
 }
 
@@ -517,7 +528,6 @@ function handleStateUpdate(state) {
     }
 
     if (state.status === "idle") {
-        console.log("IDLE — clearing offer")
         hideOfferOverlay();
         hideTransferOverlay();
     }
