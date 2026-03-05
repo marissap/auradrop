@@ -619,14 +619,11 @@ async function sendToPeer(targetHash) {
 }
 
 function handleChunk({ index, data, total, fileName, transferId }) {
+  console.log("chunk received:", index, "/", total, "transferId:", transferId)
   if (!inboundChunks[transferId]) {
     inboundChunks[transferId] = { chunks: [], fileName, total };
   }
   inboundChunks[transferId].chunks[index] = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-
-  const pct = Math.round((index + 1) / total * 100);
-  document.getElementById("progress-fill").style.width = pct + "%";
-  document.getElementById("progress-pct").textContent = pct + "%";
 }
 
 function handleTransferComplete({ transferId, fileName }) {
@@ -675,7 +672,7 @@ function acceptOffer() {
     fromAgentId: incomingOffer.fromHash,
   }));
   
-  showTransferProgress({ direction: "receiving", fileName: offer.fileName, totalBytes: offer.fileSize, bytesReceived: 0, transferId: offer.transferId });
+  showTransferProgress({ direction: "receiving", fileName: incomingOffer.fileName, totalBytes: incomingOffer.fileSize, bytesReceived: 0, transferId: incomingOffer.transferId });
 }
 
 function rejectOffer() {

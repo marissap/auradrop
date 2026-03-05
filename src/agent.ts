@@ -152,13 +152,17 @@ export class AuraDropAgent implements DurableObject {
     const resp = await senderAgent.fetch(new Request(`http://agent/chunks/${transferId}`));
     const { chunks, fileName, fileSize } = await resp.json() as PendingTransfer;
 
+    console.log("acceptDrop called, transferId:", transferId, "fromAgentId:", fromAgentId)
+    console.log("chunks fetched:", chunks.length)
+    console.log("sending done msg, connections:", this.connections.size)
+
     this.setState({
       ...this.state, status: "transferring", incomingOffer: null,
       activeTransfer: { transferId, fileName, totalBytes: fileSize, bytesReceived: 0, direction: "receiving" },
     });
 
     for (let i = 0; i < chunks.length; i++) {
-      const chunkMsg = JSON.stringify({ type: "chunk", index: i, data: chunks[i], total: chunks.length, fileName });
+      const chunkMsg = JSON.stringify({ type: "chunk", index: i, data: chunks[i], total: chunks.length, fileName, transferId });
       for (const ws of this.connections) { try { ws.send(chunkMsg); } catch {} }
       this.setState({
         ...this.state,
