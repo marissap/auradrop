@@ -333,9 +333,8 @@ button {
 
   <div id="offer-overlay">
     <div class="offer-sheet">
-      <div class="offer-from" id="offer-from">incoming drop</div>
+      <div class="offer-from" id="offer-from"></div>
       <div class="offer-title" id="offer-filename">file.zip</div>
-      <div class="offer-meta" id="offer-meta">0 KB · from someone</div>
       <div class="offer-actions">
         <button class="btn-accept" onclick="acceptOffer()">accept</button>
         <button class="btn-reject" onclick="rejectOffer()">decline</button>
@@ -493,21 +492,22 @@ function sendCellUpdate() {
 }
 
 function connectAgent() {
-  agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
+    console.log("connectAgent called") 
+    agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
 
-  agentWs.onmessage = (evt) => {
-    const msg = JSON.parse(evt.data);
+    agentWs.onmessage = (evt) => {
+        const msg = JSON.parse(evt.data);
 
-    if (msg.type === "state") handleStateUpdate(msg.state);
-    if (msg.type === "chunk") handleChunk(msg);
-    if (msg.type === "transfer_complete") handleTransferComplete(msg);
-  };
+        if (msg.type === "state") handleStateUpdate(msg.state);
+        if (msg.type === "chunk") handleChunk(msg);
+        if (msg.type === "transfer_complete") handleTransferComplete(msg);
+    };
 }
 
 function handleStateUpdate(state) {
-    console.log("state update received:", JSON.stringify(state))
+    console.log("STATE:", state.status, JSON.stringify(state), new Date().toISOString())
     if (state.status === "receiving" && state.incomingOffer) {
-        console.log("showing offer")
+        console.log("setting incomingOffer:", state.incomingOffer)
         showOffer(state.incomingOffer);
     }
 
@@ -517,7 +517,7 @@ function handleStateUpdate(state) {
     }
 
     if (state.status === "idle") {
-        console.log("idle offer")
+        console.log("IDLE — clearing offer")
         hideOfferOverlay();
         hideTransferOverlay();
     }
@@ -612,6 +612,7 @@ async function sendToPeer(targetHash) {
     fileName: selectedFile.name,
     fileSize: selectedFile.size,
     myHash,
+    myName,
   }));
 
   toast(`Waiting for ${nearbyPeers.find(p => p.hashedID === targetHash)?.displayName ?? "them"} to accept…`, "info");
@@ -633,28 +634,40 @@ function handleTransferComplete({ transferId, fileName }) {
   if (!transfer) return;
 
   const blob = new Blob(transfer.chunks, { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = transfer.fileName || fileName;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  document.body.removeChild(a);
+
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 
   delete inboundChunks[transferId];
   hideTransferOverlay();
-  toast(`✓ ${transfer.fileName} saved!`, "success");
+  toast(`✓ ${transfer.fileName} ready!`, "success");
+  console.log("transfer complete, chunks:", transfer?.chunks?.length, "fileName:", fileName)
 }
 
 function showOffer(offer) {
-  console.log("showOffer called")
-  const overlay = document.getElementById("offer-overlay")
-  console.log("overlay element:", overlay)
-  console.log("overlay classes before:", overlay.className)
-  overlay.classList.add("visible")
-  console.log("overlay classes after:", overlay.className)
+    incomingOffer = offer
+    const overlay = document.getElementById("offer-overlay")
+    overlay.classList.add("visible")
+    document.getElementById("offer-from").textContent = `incoming drop from ${offer.fromName ?? offer.fromHash.slice(0,8)}`
+
+    setTimeout(() => {
+        if (incomingOffer?.transferId === offer.transferId) {
+        rejectOffer()
+        toast("Offer expired", "info")
+        }
+    }, 60000)
 }
 
 function acceptOffer() {
+    console.log("acceptOffer called, incomingOffer:", incomingOffer)
   if (!incomingOffer) return;
+    console.log("is accept offer null??? ", incomingOffer)
   hideOfferOverlay();
   agentWs.send(JSON.stringify({
     type: "accept_drop",

@@ -133,15 +133,6 @@ export class AuraDropAgent implements DurableObject {
       incomingOffer: { ...offer, expiresAt: Date.now() + 10 * 60 * 1000 },
     });
     console.log("state after requestConsent:", JSON.stringify(this.state))
-    await this.ctx.storage.setAlarm(Date.now() + 10 * 60 * 1000);
-    await this.ctx.storage.put("pendingExpiry", offer.transferId);
-  }
-
-  async alarm(): Promise<void> {
-    const transferId = await this.ctx.storage.get<string>("pendingExpiry");
-    if (this.state.incomingOffer?.transferId === transferId) {
-      this.setState({ ...this.state, incomingOffer: null, status: "idle" });
-    }
   }
 
   private async initiateDrop(targetHash: string, transferId: string, fileName: string, fileSize: number, fromHash: string,): Promise<void> {
