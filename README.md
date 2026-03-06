@@ -10,6 +10,7 @@ KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
 - [ ] Ok so adding a contact is irrelevant because it's getting proximity regardless lol
 - [ ] Session starts but no text bubble pops up
 - [ ] The mobile frontend looks pretty shit and functions pretty awfully
+- [ ] Do something with the status and allow it to be updated
 
 TODO
 - [ ] Validate phone numbers w 2FA for yours

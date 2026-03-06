@@ -507,13 +507,17 @@
             let pendingHash;
             let pendingName;
 
-            const generateHash = async (string) => {
-                let hash = 0;
-                for (const char of string) {
-                    hash = (hash << 5) - hash + char.charCodeAt(0);
-                    hash |= 0;
-                }
-                return hash;
+            const hashPhone = async (string) => {
+                const n = phone.replace(/\D/g, "");
+                if (n.length < 7) return null;
+                const b = await crypto.subtle.digest(
+                    "SHA-256",
+                    new TextEncoder().encode(n)
+                );
+                return [...new Uint8Array(b)]
+                    .slice(0, 8)
+                    .map(x => x.toString(16).padStart(2, "0"))
+                    .join("");
             };
 
             document.getElementById("input-name").oninput = checkReady;
