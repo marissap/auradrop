@@ -27,13 +27,27 @@
   "durable_objects": {
     "bindings": [
       { "name": "GEO_TARGET", "class_name": "GeoTarget" },
-      { "name": "AURA_AGENT", "class_name": "AuraDropAgent" }
+      { "name": "AURA_AGENT", "class_name": "AuraDropAgent" },
+      { "name": "SESSION", "class_name": "Session" }
     ]
   },
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["GeoTarget", "AuraDropAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["Session"]
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "auradrop-files"
     }
   ]
 }

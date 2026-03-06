@@ -1,13 +1,13 @@
 ### AuraDrop
-Airdrop so frequently fails me. No bluetooth, based on GPS proximity, our location is everywhere anyway. Would be cool to integrate this somehow with a map like Find My Friends.
+Find my friends but real-time collaboration. Original idea based on building a better airdrop based on GPS proximity rather than bluetooth (because it fails so frequently). I often think about how find my friends could be even better, not just a map of location, but something that facilitates interaction and allows for serendipitous social iterations. Wanted to integrate real time proximity association.
 
-Uses websockets, Cloudflare's Agent SDK and workers.
+Built on Cloudflare's Agent SDK and workers.
 
 TODO
-- [x] Fix offline state
-- [ ] Remove need to manually enter name and take from device
-- [ ] Integrate into device native share mechanism
-- [x] The clear button does clear the file but not the UI text (~~this is really a message to break up the frontend code~~)
-- [ ] Fix sloppy UI bits
-- [ ] Better progress bar
-- [ ] Fix expiry (_i think it's not working_)
+- [ ] Validate phone numbers w 2FA for yours
+- [ ] Send an invite to the numbers you add rather than waiting for them to independently add you back
+- [ ] Hover on added contacts expands and makes the UI janky
+- [ ] The generated hash shows up when a phone number is long enough and it shakes the whole UI
+- [ ] First notification doesn't disappear but subsequent ones do??
+- [ ] Do I want a map??
+- [ ] USE REACT FOR THE FRONT END TO MANAGE STATE THIS IS SO MESSY

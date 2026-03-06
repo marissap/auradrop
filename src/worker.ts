@@ -10,8 +10,9 @@
 
 import { GeoTarget } from "./geotarget";
 import { AuraDropAgent } from "./agent";
+import { Session } from "./session";
 
-export { GeoTarget, AuraDropAgent };
+export { GeoTarget, AuraDropAgent, Session };
 
 function encodeGeohash(lat: number, lng: number, precision = 5): string {
   const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
@@ -37,7 +38,7 @@ export default {
     const cors = { "Access-Control-Allow-Origin": "*" };
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-    // GET /cell?lat=51.5&lng=-0.09
+    // GET /cell?lat=xx.x&lng=-y.yy
     if (url.pathname === "/cell") {
       console.log("hitting cell route, upgrade header:", req.headers.get("Upgrade"))
       const lat = parseFloat(url.searchParams.get("lat") ?? "0");
@@ -47,7 +48,7 @@ export default {
       return cell.fetch(req);
     }
 
-    // GET /agent/a3f2b1c9 (WebSocket) or POST /agent/a3f2b1c9/upload
+    // GET /agent/a6f7q1c9 or POST /agent/a6f7q1c9/upload
     const agentMatch = url.pathname.match(/^\/agent\/([a-f0-9]+)(\/.*)?$/);
     if (agentMatch) {
       const [, agentId, subpath] = agentMatch;
@@ -55,6 +56,14 @@ export default {
       const newUrl = new URL(req.url);
       newUrl.pathname = subpath || "/";
       return agent.fetch(new Request(newUrl, req));
+    }
+
+    // GET /session/adsf834
+    const sessionMatch = url.pathname.match(/^\/session\/([a-zA-Z0-9_-]+)(\/.*)?$/);
+    if (sessionMatch) {
+      const [, sessionId] = sessionMatch;
+      const session = env.SESSION.get(env.SESSION.idFromName(sessionId));
+      return session.fetch(req);
     }
 
     return env.ASSETS.fetch(req);
