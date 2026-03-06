@@ -13,6 +13,8 @@ KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
 - [ ] Do something with the status and allow it to be updated
 
 TODO
+- [ ] If you remove a contact they stay in your nearby list
+- [ ] Add back the airdrop like file transfer option (in session or outside it?)
 - [ ] Validate phone numbers w 2FA for yours
 - [ ] Send an invite to the numbers you add rather than waiting for them to independently add you back
 - [ ] Hover on added contacts expands and makes the UI janky
