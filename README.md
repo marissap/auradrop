@@ -8,10 +8,10 @@ Built on Cloudflare's Agent SDK and workers.
 
 KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
 - [ ] Ok so adding a contact is irrelevant because it's getting proximity regardless lol
-- [ ] Session starts but no text bubble pops up
+- [x] Session starts but no text bubble pops up
 - [ ] If you remove a contact they stay in your nearby list
 - [ ] If a new overlay is sent i.e. two people get a proximity notif and user 1 triggers and invite before user 2 dismisses notif, they will stack out of order instead of a new notif taking priority (just need to call the clear func in the right place!)
-- [ ] The mobile frontend looks pretty shit and functions pretty awfully
+- [x] The mobile frontend looks pretty shit and functions pretty awfully
 - [ ] Do something with the status and allow it to be updated
 
 TODO

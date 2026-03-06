@@ -377,6 +377,25 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
+        @media (max-width: 700px) {
+            #columns {
+                grid-template-columns: 1fr;
+            }
+
+            #left {
+                max-height: 45vh;
+                border-right: none;
+                border-bottom: 1px solid #ddd;
+            }
+
+            #session-panel.on {
+                position: fixed;
+                inset: 0;
+                z-index: 10;
+                background: #fff;
+            }
+        }
     </style>
 </head>
 
@@ -435,21 +454,21 @@
                         <div style="font-size: 48px; transform: rotate(60deg); transform-origin: center;">✦</div>
                         <div>no active session</div>
                     </div>
-                    <div id="session">
-                        <div id="session-header">
-                            <b id="session-name">—</b>
-                            <div class="container">
-                                <span class="tag" id="session-count">—</span>
-                                <button onclick="endSession()">end</button>
-                            </div>
+                </div>
+                <div id="session">
+                    <div id="session-header">
+                        <b id="session-name">—</b>
+                        <div class="container">
+                            <span class="tag" id="session-count">—</span>
+                            <button onclick="endSession()">end</button>
                         </div>
-                        <div id="messages"></div>
-                        <div id="input-row">
-                            <textarea id="msg-input" placeholder="message… or @ai for AI"
-                                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"
-                                oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
-                            <button class="primary" onclick="sendMsg()">Send</button>
-                        </div>
+                    </div>
+                    <div id="messages"></div>
+                    <div id="input-row">
+                        <textarea id="msg-input" placeholder="message… or @ai for AI"
+                            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"
+                            oninput="this.style.height='';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+                        <button class="primary" onclick="sendMsg()">send</button>
                     </div>
                 </div>
             </div>
@@ -611,7 +630,9 @@
                         case "transfer_complete": onDone(m); break;
                         case "transfer_sent": toast("file sent!", "ok"); break;
                         case "offer_declined": toast("declined", "err"); break;
-                        case "contact_nearby": onNearby(m.hash, m.name); break;
+                        case "contact_nearby":
+                            onNearby(m.hash, m.name);
+                            break;
                         case "session_ready": onSessionReady(m.sessionId, m.peerName, m.peerHash); break;
                     }
                 };
@@ -856,7 +877,8 @@
             }
 
             function onNearby(hash, name) {
-                pendingHash = hash; pendingName = name;
+                pendingHash = hash;
+                pendingName = name;
                 document.getElementById("nearby-who").textContent = name;
                 overlay("nearby-overlay", 1);
             }
