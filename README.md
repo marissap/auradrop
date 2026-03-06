@@ -3,6 +3,9 @@ Find my friends but real-time collaboration. Original idea based on building a b
 
 Built on Cloudflare's Agent SDK and workers.
 
+------------
+
+
 KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
 - [ ] Ok so adding a contact is irrelevant because it's getting proximity regardless lol
 - [ ] Session starts but no text bubble pops up

@@ -290,31 +290,6 @@
             max-width: 90%;
         }
 
-        /* 
-        #ir {
-            display: flex;
-            gap: 6px;
-            padding: 10px 12px;
-            border-top: 1px solid #ddd;
-            align-items: flex-end;
-        } */
-
-        /* #mi {
-            flex: 1;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 6px 8px;
-            resize: none;
-            height: 34px;
-            max-height: 100px;
-            outline: none;
-            line-height: 1.4;
-        }
-
-        #mi:focus {
-            border-color: #111;
-        } */
-
         .overlay {
             display: none;
             position: fixed;
@@ -336,12 +311,6 @@
             width: 100%;
             max-width: 360px;
         }
-
-        /* .sb {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        } */
 
         #toasts {
             position: fixed;
@@ -517,6 +486,7 @@
             const WORKER_URL = "https://auradrop.marissaphul.workers.dev";
             const WS_URL = WORKER_URL.replace(/^https/, "wss").replace(/^http/, "ws");
 
+            // i have way tooooo many global variables i guess this is why react state exists lol
             let myHash;
             let myName;
             let myStatus;
@@ -537,11 +507,14 @@
             let pendingHash;
             let pendingName;
 
-            async function hashPhone(phone) {
-                const n = phone.replace(/\D/g, ""); if (n.length < 7) return null;
-                const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(n));
-                return [...new Uint8Array(b)].slice(0, 8).map(x => x.toString(16).padStart(2, "0")).join("");
-            }
+            const generateHash = async (string) => {
+                let hash = 0;
+                for (const char of string) {
+                    hash = (hash << 5) - hash + char.charCodeAt(0);
+                    hash |= 0;
+                }
+                return hash;
+            };
 
             document.getElementById("input-name").oninput = checkReady;
             document.getElementById("input-phone").oninput = async e => {
@@ -549,11 +522,12 @@
                 document.getElementById("hash-hint").textContent = h ? `→ ${h}` : "";
                 checkReady();
             };
-            function checkReady() {
+
+            const checkReady = () => {
                 document.getElementById("enter-btn").disabled =
                     !(document.getElementById("input-name").value.trim() &&
                         document.getElementById("input-phone").value.replace(/\D/g, "").length >= 7);
-            }
+            };
 
             async function doSetup() {
                 myName = document.getElementById("input-name").value.trim();
@@ -571,6 +545,7 @@
                     : toast("GPS not supported", "err");
             }
 
+            // i looked this function up on the internet lol hope it works!!
             function geohash(lat, lng, p = 5) {
                 const B = "0123456789bcdefghjkmnpqrstuvwxyz";
                 let i = 0, b = 0, e = true, s = "", la = -90, lb = 90, lo = -180, lp = 180;
@@ -582,74 +557,121 @@
                 return s;
             }
 
-            function onLocation() {
+            const onLocation = () => {
                 const g = geohash(myLat, myLng);
                 document.getElementById("geohash-tag").textContent = g;
-                if (g !== currentGeohash) { currentGeohash = g; connectGeohashCell(); }
-            }
+                if (g !== currentGeohash) {
+                    currentGeohash = g;
+                    connectGeohashCell();
+                }
+            };
 
-            function connectGeohashCell() {
+            const connectGeohashCell = () => {
                 cellWs?.close();
-                cellWs = new WebSocket(`${WS_URL}/cell?lat=${myLat}&lng=${myLng}&id=${myHash}&name=${encode(myName)}&status=${encode(myStatus)}`);
-                cellWs.onopen = () => setConnected(1);
-                cellWs.onclose = () => { setConnected(0); peers = []; renderNearby(); setTimeout(connectGeohashCell, 3000); };
-                cellWs.onmessage = e => { const m = JSON.parse(e.data); if (m.type === "presence") { peers = m.peers || []; renderNearby(); } };
-                setInterval(() => cellWs?.readyState === 1 && cellWs.send(JSON.stringify({ type: "ping", peerId: myHash })), 15000);
-            }
+                cellWs = new WebSocket(
+                    `${WS_URL}/cell?lat=${myLat}&lng=${myLng}&id=${myHash}&name=${encodeURIComponent(myName)}&status=${encodeURIComponent(myStatus)}`
+                );
 
-            function connectAgent() {
+                cellWs.onopen = () => setConnected(1);
+                cellWs.onclose = () => {
+                    setConnected(0);
+                    peers = [];
+                    renderNearby();
+                    setTimeout(connectGeohashCell, 3000);
+                };
+
+                cellWs.onmessage = e => {
+                    const m = JSON.parse(e.data);
+                    if (m.type === "presence") {
+                        peers = m.peers || [];
+                        renderNearby();
+                    }
+                };
+
+                setInterval(() => {
+                    if (cellWs?.readyState === 1) {
+                        cellWs.send(JSON.stringify({ type: "ping", peerId: myHash }));
+                    }
+                }, 15000);
+            };
+
+            const connectAgent = () => {
                 agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
                 agentWs.onopen = () => { loadContacts(); saveProfile(); };
                 agentWs.onclose = () => setTimeout(connectAgent, 3000);
                 agentWs.onmessage = e => {
                     const m = JSON.parse(e.data);
-                    if (m.type === "state") onState(m.state);
-                    if (m.type === "chunk") onChunk(m);
-                    if (m.type === "transfer_complete") onDone(m);
-                    if (m.type === "transfer_sent") toast("file sent!", "ok");
-                    if (m.type === "offer_declined") toast("declined", "err");
-                    if (m.type === "contact_nearby") onNearby(m.hash, m.name);
-                    if (m.type === "session_ready") onSessionReady(m.sessionId, m.peerName, m.peerHash);
+                    switch (m.type) {
+                        case "state": onState(m.state); break;
+                        case "chunk": onChunk(m); break;
+                        case "transfer_complete": onDone(m); break;
+                        case "transfer_sent": toast("file sent!", "ok"); break;
+                        case "offer_declined": toast("declined", "err"); break;
+                        case "contact_nearby": onNearby(m.hash, m.name); break;
+                        case "session_ready": onSessionReady(m.sessionId, m.peerName, m.peerHash); break;
+                    }
                 };
-            }
+            };
 
-            function connectSession(id) {
+            const connectSession = id => {
                 sessionWs?.close();
-                sessionWs = new WebSocket(`${WS_URL}/session/${id}?hash=${myHash}&name=${encode(myName)}`);
+                sessionWs = new WebSocket(`${WS_URL}/session/${id}?hash=${myHash}&name=${encodeURIComponent(myName)}`);
+
                 sessionWs.onmessage = e => {
                     const m = JSON.parse(e.data);
-                    if (m.type === "history") { document.getElementById("messages").innerHTML = ""; m.messages.forEach(addMsg); }
-                    if (m.type === "message") addMsg(m.message);
-                    if (m.type === "joined" || m.type === "left") {
-                        document.getElementById("session-count").textContent = `${m.participants} connected`;
-                        toast(`${m.name} ${m.type}`, "ok");
+                    switch (m.type) {
+                        case "history":
+                            document.getElementById("messages").innerHTML = "";
+                            m.messages.forEach(addMsg);
+                            break;
+                        case "message": addMsg(m.message); break;
+                        case "joined":
+                        case "left":
+                            document.getElementById("session-count").textContent = `${m.participants} connected`;
+                            toast(`${m.name} ${m.type}`, "ok");
+                            break;
+                        case "ai_typing": aiBuffer = ""; aiEl = makeAIBubble(); break;
+                        case "ai_token": aiEl && (aiBuffer += m.token, aiEl.textContent = aiBuffer, scrollMessages()); break;
+                        case "ai_done": aiEl = null; scrollMessages(); break;
+                        case "ai_error":
+                            toast("AI unavailable", "err");
+                            aiEl?.closest(".msg")?.remove();
+                            aiEl = null;
+                            break;
                     }
-                    if (m.type === "ai_typing") { aiBuffer = ""; aiEl = makeAIBubble(); }
-                    if (m.type === "ai_token") { aiBuffer += m.token; if (aiEl) aiEl.textContent = aiBuffer; scrollMessages(); }
-                    if (m.type === "ai_done") { aiEl = null; scrollMessages(); }
-                    if (m.type === "ai_error") { toast("AI unavailable", "err"); aiEl?.closest(".msg")?.remove(); aiEl = null; }
                 };
-            }
+            };
 
-            async function loadContacts() {
-                try { contacts = await (await fetch(`${WORKER_URL}/agent/${myHash}/contacts`)).json(); renderContacts(); renderNearby(); } catch { }
-            }
-            async function saveProfile() {
-                try { await fetch(`${WORKER_URL}/agent/${myHash}/profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: myName, hashedPhone: myHash, status: myStatus }) }); } catch { }
-            }
+            const loadContacts = async () => {
+                try {
+                    contacts = await (await fetch(`${WORKER_URL}/agent/${myHash}/contacts`)).json();
+                    renderContacts();
+                    renderNearby();
+                } catch { }
+            };
 
-            async function addContact() {
+            const saveProfile = async () => {
+                try {
+                    await fetch(`${WORKER_URL}/agent/${myHash}/profile`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ displayName: myName, hashedPhone: myHash, status: myStatus })
+                    });
+                } catch { }
+            };
+
+            const addContact = async () => {
                 const input = document.getElementById("input-contact");
-                const hash = await hashPhone(input.value.trim());
-                if (!hash) {
-                    toast("invalid number", "err");
-                    return;
+                const phone = input.value.trim();
+
+                const hash = await hashPhone(phone);
+                if (!hash) return toast("invalid number", "err");
+
+                if (contacts.some(c => c.hashedPhone === hash)) {
+                    return toast("already added!", "ok");
                 }
-                if (contacts.find(c => c.hashedPhone === hash)) {
-                    toast("already added!", "ok");
-                    return;
-                }
-                const name = prompt("name for this contact?");
+
+                const name = prompt("name?");
                 if (!name) return;
                 try {
                     await fetch(`${WORKER_URL}/agent/${myHash}/contacts`, {
@@ -657,22 +679,30 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ hashedPhone: hash, displayName: name })
                     });
+
                     contacts.push({ hashedPhone: hash, displayName: name });
                     input.value = "";
                     renderContacts();
                     renderNearby();
                     toast(`${name} added!`, "ok");
-                } catch {
-                    toast("Failed", "err");
-                }
-            }
 
-            async function removeContact(h) {
+                } catch {
+                    toast("failed to add contact", "err");
+                }
+            };
+
+            const removeContact = async (hash) => {
                 try {
-                    await fetch(`${WORKER_URL}/agent/${myHash}/contacts/${h}`, { method: "DELETE" });
-                    contacts = contacts.filter(c => c.hashedPhone !== h); renderContacts(); renderNearby();
-                } catch { toast("Failed", "err"); }
-            }
+                    await fetch(`${WORKER_URL}/agent/${myHash}/contacts/${hash}`, { method: "DELETE" });
+
+                    contacts = contacts.filter(c => c.hashedPhone !== hash);
+                    renderContacts();
+                    renderNearby();
+
+                } catch {
+                    toast("failed to remove contact", "err");
+                }
+            };
 
             function renderContacts() {
                 const nearbyHashes = new Set(peers.map(p => p.hashedID));
@@ -680,6 +710,7 @@
                 document.getElementById("contact-list").innerHTML = contacts.length
                     ? contacts.map(c => {
                         const isNearby = nearbyHashes.has(c.hashedPhone);
+                        // i'd really rather use DOM methods here like createElement rather than inline html but that's fine for now
                         const sessionBtn = isNearby
                             ? `<button onclick="startSession('${c.hashedPhone}','${escapeQuotes(c.displayName)}')">session</button>`
                             : `<span class="muted" style="font-size:11px">not nearby</span>`;
@@ -691,7 +722,7 @@
           </div>
         </div>`;
                     }).join("")
-                    : `<span class="muted">No contacts yet.</span>`;
+                    : `<span class="muted">no contacts yet.</span>`;
             }
 
             function renderNearby() {
@@ -704,7 +735,7 @@
         <div class="card-status">${p.status || ""}</div>
         <button style="width:100%" onclick="startSession('${p.hashedID}','${escapeQuotes(p.displayName)}')">session</button>
       </div>`).join("")
-                    : `<span class="muted" style="grid-column:1/-1">Searching…</span>`;
+                    : `<span class="muted" style="grid-column:1/-1">searching…</span>`;
             }
 
             function startSession(hash, name) {
@@ -760,7 +791,7 @@
             function onState(state) {
                 if (state.status === "receiving" && state.incomingOffer) {
                     document.getElementById("offer-filename").textContent = state.incomingOffer.fileName;
-                    document.getElementById("offer-info").textContent = `${formatBytes(state.incomingOffer.fileSize)} · from ${state.incomingOffer.fromName || state.incomingOffer.fromHash.slice(0, 8)}`;
+                    document.getElementById("offer-info").textContent = `from ${state.incomingOffer.fromName || state.incomingOffer.fromHash.slice(0, 8)}`;
                     overlay("file-overlay", 1);
                 }
                 if (state.status === "idle") {
@@ -772,1201 +803,95 @@
                 }
             }
 
-            function acceptOffer() {
+            const acceptOffer = () => {
                 const o = agentState.incomingOffer;
                 if (!o) return;
                 overlay("file-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "accept_drop", transferId: o.transferId, fromAgentId: o.fromHash }));
-            }
+            };
 
-            function rejectOffer() {
+            const rejectOffer = () => {
                 overlay("file-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "reject_drop" }));
-            }
+            };
 
-            function onChunk({ index, data, fileName, transferId }) {
+            // these are for streaming file transfers!
+            const onChunk = ({ index, data, fileName, transferId }) => {
                 if (!inbound[transferId]) inbound[transferId] = { chunks: [], fileName };
                 inbound[transferId].chunks[index] = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-            }
+            };
 
-            function onDone({ transferId, fileName }) {
-                const transfer = inbound[transferId]; if (!transfer) return;
-                const assignTransfer = Object.assign(document.createElement("a"), {
-                    href: URL.createObjectURL(new Blob(transfer.chunks)),
+            const onDone = ({ transferId, fileName }) => {
+                const transfer = inbound[transferId];
+                if (!transfer) return;
+
+                const blob = new Blob(transfer.chunks);
+                const a = Object.assign(document.createElement("a"), {
+                    href: URL.createObjectURL(blob),
                     download: transfer.fileName || fileName
                 });
-                document.body.appendChild(assignTransfer);
-                assignTransfer.click();
+
+                document.body.appendChild(a);
+                a.click();
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-                delete inbound[transferId];
-                toast(`${t.fileName} saved`, "ok");
-            }
 
-            function acceptInvite() {
+                delete inbound[transferId];
+                toast(`${transfer.fileName || fileName} saved`, "ok");
+            };
+
+            const acceptInvite = () => {
                 overlay("invite-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "accept_session", sessionId: agentState.incomingSession?.sessionId }));
-            }
-            function rejectInvite() { overlay("invite-overlay", 0); agentWs.send(JSON.stringify({ type: "reject_session" })); }
+            };
 
-            function onNearby(hash, name) {
+            // i'm not sure this is getting broadcasted back
+            const rejectInvite = () => {
+                overlay("invite-overlay", 0);
+                agentWs.send(JSON.stringify({ type: "reject_session" }));
+            };
+
+            const onNearby = (hash, name) => {
                 pendingHash = hash; pendingName = name;
                 document.getElementById("nearby-who").textContent = name;
                 overlay("nearby-overlay", 1);
-            }
-            function startWithNearby() { overlay("nearby-overlay", 0); pendingHash && startSession(pendingHash, pendingName); }
+            };
 
-            function setConnected(on) {
+            const startWithNearby = () => {
+                overlay("nearby-overlay", 0);
+                pendingHash && startSession(pendingHash, pendingName);
+            };
+
+            const setConnected = (on) => {
                 const connection = document.getElementById("conn-tag");
                 connection.textContent = on ? "live" : "offline"; connection.className = "tag" + (on ? " live" : "");
             }
 
-            function overlay(id, on) {
+            const overlay = (id, on) => {
                 document.getElementById(id).classList[on ? "add" : "remove"]("on");
             }
 
-            function scrollMessages() {
+            const scrollMessages = () => {
                 const messages = document.getElementById("messages");
                 messages.scrollTop = messages.scrollHeight;
-            }
+            };
 
-            function toast(msg, type) {
+            const toast = (msg, type) => {
                 const el = Object.assign(document.createElement("div"), { className: `toast ${type}`, textContent: msg });
                 document.getElementById("toasts").appendChild(el);
-                setTimeout(() => el.remove(), 4000);
-            }
+                setTimeout(() => el.remove(), 4000); // i don't know if i'm happy with this timeout
+            };
 
-            function formatBytes(b) { return b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(1)}KB` : `${(b / 1048576).toFixed(1)}MB`; }
-            function encode(s) { return encodeURIComponent(s); }
-            function escapeQuotes(s) { return s.replace(/'/g, "\\'"); }
-            function safeHtml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>"); }
+            // looked this func up to make it easier to generate strings for inside single-quoted html
+            const escapeQuotes = (s) => s.replace(/'/g, "\\'");
+
+            const safeHtml = (s) =>
+                s
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/\n/g, "<br>");
         </script>
 </body>
 
 </html>
-
-<!-- <!DOCTYPE html>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AuraDrop</title>
-
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-<style>
-    :root {
-        --bg: #ffffff;
-        --text: #111111;
-        --border: #e8e8e8;
-
-        --green: #39ff14;
-        --blue: #00e5ff;
-        --red: #e05353;
-
-        --green-glow: rgba(57, 255, 20, 0.4);
-        --blue-glow: rgba(0, 229, 255, 0.4);
-        --red-glow: rgba(255, 0, 81, 0.4);
-
-        --radius: 8px;
-    }
-
-    * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-    }
-
-    body {
-        background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
-        color: var(--text);
-        font-family: 'DM Mono', monospace;
-        font-size: 14px;
-    }
-
-    #app {
-        max-width: 520px;
-        margin: auto;
-        padding: 24px;
-    }
-
-    .screen {
-        display: none;
-    }
-
-    .screen.active {
-        display: block;
-        animation: fadeIn 0.4s ease;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(6px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    h1 {
-        font-weight: 500;
-        margin-bottom: 8px;
-    }
-
-    h1 em {
-        color: var(--green);
-        text-shadow: 0 0 6px var(--green-glow);
-        font-style: normal;
-    }
-
-    p {
-        margin-bottom: 24px;
-        color: #666;
-    }
-
-    .field {
-        margin-bottom: 16px;
-    }
-
-    label {
-        display: block;
-        margin-bottom: 6px;
-        font-size: 12px;
-        color: #666;
-    }
-
-    input {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        font-family: inherit;
-        transition: all 0.2s ease;
-    }
-
-    input:focus {
-        outline: none;
-        border-color: var(--green);
-        box-shadow: 0 0 8px var(--green-glow);
-    }
-
-    .drop-zone,
-    .peer-card,
-    .offer-sheet {
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 14px;
-        margin-bottom: 16px;
-        background: #ffffff;
-        transition: all 0.2s ease;
-    }
-
-    .peer-card {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-    }
-
-    .peer-card:hover {
-        border-color: var(--blue);
-        box-shadow: 0 4px 18px var(--blue-glow);
-        transform: translateY(-2px);
-    }
-
-    .peer-info {
-        flex: 1;
-        min-width: 0;
-    }
-
-    .drop-zone {
-        text-align: center;
-        background: linear-gradient(180deg, #ffffff, #f9f9f9);
-    }
-
-    .drop-zone.dragover {
-        border-color: var(--green);
-        box-shadow: 0 0 18px var(--green-glow);
-    }
-
-    .drop-zone.has-file {
-        border-color: var(--green);
-        background: linear-gradient(180deg, #ffffff, #f4fff1);
-    }
-
-    .topbar {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 24px;
-    }
-
-    .connection-pill {
-        padding: 4px 8px;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        font-size: 12px;
-        transition: all 0.3s ease;
-    }
-
-    .connection-pill.live {
-        border-color: var(--green);
-        color: var(--green);
-        box-shadow: 0 0 10px var(--green-glow);
-        animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-
-        0%,
-        100% {
-            box-shadow: 0 0 10px var(--green-glow);
-        }
-
-        50% {
-            box-shadow: 0 0 20px var(--green-glow);
-        }
-    }
-
-    #offer-overlay,
-    #transfer-overlay {
-        position: fixed;
-        inset: 0;
-        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.96), rgba(245, 245, 245, 0.98));
-        backdrop-filter: blur(6px);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-    }
-
-    #offer-overlay.visible,
-    #transfer-overlay.visible {
-        display: flex;
-        animation: fadeIn 0.3s ease;
-    }
-
-    .progress-track {
-        height: 6px;
-        background: #eee;
-        margin-top: 16px;
-        border-radius: var(--radius);
-        overflow: hidden;
-    }
-
-    .progress-fill {
-        height: 100%;
-        width: 0%;
-        background: linear-gradient(90deg, var(--green), var(--blue));
-        box-shadow: 0 0 10px var(--green-glow);
-        transition: width 0.25s ease;
-    }
-
-    /* LAYOUT */
-    #right-panel {
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        background: var(--bg);
-        position: relative;
-    }
-
-    #left-panel {
-        border-right: 1px solid var(--border);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        background: var(--surface);
-    }
-
-    .panel-section {
-        border-bottom: 1px solid var(--border);
-        flex-shrink: 0;
-    }
-
-    .panel-section-head {
-        padding: 12px 16px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        cursor: pointer;
-        user-select: none;
-    }
-
-    .panel-section-head:hover {
-        background: var(--surface2);
-    }
-
-
-    /* BUTTONS */
-    button {
-        font-family: inherit;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        padding: 6px 12px;
-        border-radius: var(--radius);
-        letter-spacing: 0.02em;
-        border: none;
-    }
-
-    .btn-primary {
-        background: linear-gradient(135deg, var(--green), #8aff6b);
-        width: 100%;
-        box-shadow: 0 4px 14px var(--green-glow);
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px var(--green-glow);
-    }
-
-    .btn-primary:active {
-        transform: translateY(0);
-    }
-
-    .btn-add,
-    .send-btn,
-    .btn-go,
-    .clear-btn {
-        background: linear-gradient(135deg, var(--blue), #6fffff);
-        box-shadow: 0 4px 14px var(--blue-glow);
-    }
-
-    .btn-accept {
-        background: linear-gradient(135deg, var(--green), #8aff6b);
-        box-shadow: 0 4px 14px var(--green-glow);
-    }
-
-    .btn-reject {
-        background: linear-gradient(135deg, var(--red), #ff6f6f);
-        box-shadow: 0 4px 14px var(--red-glow);
-    }
-
-    /*  toast (the lil notif boxes) */
-    #toast-wrap {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
-
-    .toast {
-        background: #ffffff;
-        border: 1px solid var(--border);
-        padding: 10px 14px;
-        margin-bottom: 8px;
-        border-radius: var(--radius);
-        animation: toastIn 0.3s ease;
-    }
-
-    .toast.success {
-        border-color: var(--green);
-        box-shadow: 0 0 10px var(--green-glow);
-    }
-
-    .toast.info {
-        border-color: var(--blue);
-        box-shadow: 0 0 10px var(--blue-glow);
-    }
-
-    .toast-error {
-        border-color: red;
-        box-shadow: 0 0 10px var(--red-glow);
-    }
-
-    @keyframes toastIn {
-        from {
-            opacity: 0;
-            transform: translateY(-6px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-</style>
-</head>
-
-<body>
-    <div id="setup-overlay">
-        <div class="setup-form">
-            <div class="setup-wordmark">auradrop</div>
-            <div class="setup-sub">collab with friends based on proximity</div>
-
-            <div class="field">
-                <label>name</label>
-                <input type="text" id="input-name" placeholder="e.g. marissa" maxlength="24" autocomplete="off">
-            </div>
-
-            <div class="field">
-                <label>phone number</label>
-                <input type="tel" id="input-phone" placeholder="+1 000 000 0000" autocomplete="tel">
-                <div class="hash-text" id="hash-text"></div>
-            </div>
-
-            <div class="field">
-                <label>status <span style="color:var(--dim)">(optional)</span></label>
-                <input type="text" id="input-status" placeholder="☕ at the coffee shop" maxlength="40"
-                    autocomplete="off">
-            </div>
-
-            <button class="btn-primary" id="btn-go" disabled onclick="startSession()">
-                enter auradrop →
-            </button>
-        </div>
-    </div>
-
-    <div id="app">
-        <div class="topbar">
-            <div class="topbar-left">
-                <div class="topbar-logo">◎</div>
-                <span class="topbar-name" id="topbar-name">auradrop</span>
-                <div class="connection-pill" id="conn-pill">
-                    <div class="conn-dot"></div>
-                    <span id="conn-label">connecting</span>
-                </div>
-            </div>
-            <div class="topbar-right">
-                <span id="user-name-display">—</span>
-            </div>
-        </div>
-
-        <div id="left-panel">
-            <div class="panel-section" id="contacts-section">
-                <div class="panel-section-head" onclick="toggleSection('contacts-section')">
-                    <span class="section-title">contacts</span>
-                    <div style="display:flex;align-items:center;gap:6px">
-                        <span class="section-count" id="contacts-count">0</span>
-                        <span class="section-toggle">▾</span>
-                    </div>
-                </div>
-                <div class="panel-section-body">
-                    <div class="add-contact-form">
-                        <input type="tel" id="add-contact-input" placeholder="+1 555 000 0000"
-                            onkeydown="if(event.key==='Enter') addContact()">
-                        <button class="btn-add" onclick="addContact()">add</button>
-                    </div>
-                    <div style="height:12px"></div>
-                    <div class="contacts-list" id="contacts-list">
-                        <div class="empty-state">no contacts yet.<br>add a phone number above.</div>
-                    </div>
-                </div>
-            </div>
-            <div class="panel-section"
-                style="flex:1;overflow:hidden;display:flex;flex-direction:column;border-bottom:none">
-                <div class="panel-section-head">
-                    <span class="section-title">nearby now</span>
-                    <span class="section-count" id="nearby-count">0</span>
-                </div>
-                <div class="nearby-scroll">
-                    <div class="nearby-grid" id="nearby-grid">
-                        <div class="nearby-empty">
-                            📡<br>searching for<br>people in your area...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="right-panel">
-            <div class="session-idle" id="session-idle">
-                <div class="idle-glyph">✦</div>
-                <div class="idle-label">no active session</div>
-                <div style="font-size:0.65rem;color:var(--dim);text-align:center;max-width:220px;line-height:1.8">
-                    start a session with a nearby contact
-                </div>
-            </div>
-            <div class="session-active" id="session-active">
-                <div class="session-header">
-                    <div class="session-with">
-                        <div class="session-with-avatar" id="session-peer-avatar">?</div>
-                        <div>
-                            <div class="session-with-name" id="session-peer-name">—</div>
-                            <div class="session-with-sub">active session · type @ai for AI</div>
-                        </div>
-                    </div>
-                    <div class="session-meta">
-                        <div class="session-participants-pill" id="session-participants">2 connected</div>
-                        <button class="btn-end" onclick="endSession()">end session</button>
-                    </div>
-                </div>
-
-                <div class="messages-wrap" id="messages-wrap"></div>
-
-                <div class="session-input-bar">
-                    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-                        <textarea class="session-input" id="session-input"
-                            placeholder="message your friend (@ai to ask AI)" rows="1" onkeydown="handleInputKey(event)"
-                            oninput="autoResize(this)"></textarea>
-                        <div class="ai-hint">@ai — ask the AI · ⏎ send · ⇧⏎ new line</div>
-                    </div>
-                    <button class="send-msg-btn" onclick="sendMessage()">send ↑</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="offer-overlay" id="file-offer-overlay">
-            <div class="offer-sheet">
-                <div class="offer-label">incoming drop</div>
-                <div class="offer-title" id="offer-filename">file.zip</div>
-                <div class="offer-from" id="offer-from"></div>
-                <div class="offer-actions">
-                    <button class="btn-accept" onclick="acceptOffer()">accept</button>
-                    <button class="btn-reject" onclick="rejectOffer()">decline</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="offer-overlay" id="session-invite-overlay">
-            <div class="offer-sheet">
-                <div class="offer-label">session invite</div>
-                <div class="offer-from" id="invite-from-name"></div>
-                <div class="offer-info">wants to start a session</div>
-                <div class="offer-actions">
-                    <button class="btn-accept" onclick="acceptSessionInvite()">join session</button>
-                    <button class="btn-reject" onclick="rejectSessionInvite()">decline</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="offer-overlay" id="friend-nearby-overlay">
-            <div class="offer-sheet">
-                <div class="offer-label">friend nearby</div>
-                <div class="friend-nearby-title" id="nearby-friend-name"></div>
-                <div class="offer-info" id="nearby-friend-info">just entered your proximity cell</div>
-                <div class="offer-actions">
-                    <button class="btn-accept" onclick="startSessionWithNearby()">start session</button>
-                    <button class="btn-reject"
-                        onclick="document.getElementById('friend-nearby-overlay').classList.remove('visible')">dismiss</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
-            <span class="drop-icon" id="drop-icon">⌁</span>
-            <div class="drop-title" id="drop-title">tap to choose a file</div>
-            <div class="drop-sub" id="drop-sub">any file type</div>
-            <button class="clear-btn" id="file-clear" onclick="clearFile(event)" style="display:none">clear</button>
-        </div>
-        <input type="file" id="file-input" onchange="handleFileSelect(this)">
-
-    </div>
-
-    <div id="transfer-overlay">
-        <div class="transfer-anim" id="transfer-anim">
-            <span class="transfer-icon" id="transfer-icon">⌁</span>
-        </div>
-        <div class="transfer-label" id="transfer-label">sending</div>
-        <div class="transfer-filename" id="transfer-filename">file.zip</div>
-        <div class="progress-track">
-            <div class="progress-fill" id="progress-fill"></div>
-        </div>
-        <div class="progress-pct" id="progress-pct">0%</div>
-    </div>
-
-    <div id="toast-wrap"></div>
-    </div>
-
-    <script>
-        const WORKER_URL = "https://auradrop.marissaphul.workers.dev";
-        const WS_URL = WORKER_URL.replace("https://", "wss://").replace("http://", "ws://");
-
-        // so many variables to track i hate that this is messy
-        let myHash = null;
-        let myName = "";
-        let cellWs = null;
-        let agentWs = null;
-        let nearbyPeers = [];
-        let selectedFile = null;
-        let incomingOffer = null;
-        let inboundChunks = {};
-        let watchId = null;
-        let currentGeohash = null;
-        let lat = null;
-        let lang = null;
-        let sessionWs = null;
-        let currentSessionId = null;
-        let aiBuffer = "";
-        let contacts = [];
-        let myStatus = "";
-        let agentState = { status: "idle", incomingOffer: null, activeTransfer: null, incomingSession: null };
-        let sessionPeerName = "";
-        let sessionPeerHash = "";
-        let pendingNearbyHash = null;
-        let pendingNearbyName = null;
-        let offerTimeout = null;
-
-        // ALL THE SETUP FUNCTIONS
-        async function hashPhone(phone) {
-            const clean = phone.replace(/\D/g, "");
-            if (clean.length < 7) return null;
-            const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clean));
-            return Array.from(new Uint8Array(buf)).slice(0, 8)
-                .map(b => b.toString(16).padStart(2, "0")).join("");
-        }
-
-        document.getElementById("input-phone").addEventListener("input", async (e) => {
-            const hash = await hashPhone(e.target.value);
-            const hash_text = document.getElementById("hash");
-            hash_text.textContent = hash ? `→ ${hash}` : "";
-            hash_text.className = "hash" + (hash ? " ready" : "");
-            checkSetupReady();
-        });
-
-        document.getElementById("input-name").addEventListener("input", checkSetupReady);
-
-        function checkSetupReady() {
-            const name = document.getElementById("input-name").value.trim();
-            const phone = document.getElementById("input-phone").value;
-            document.getElementById("btn-go").disabled =
-                !(name.length > 0 && phone.replace(/\D/g, "").length >= 7);
-        }
-
-        async function loadProfile() {
-            const res = await fetch(`${WORKER_URL}/agent/${myHash}/profile`);
-            const profile = await res.json();
-            if (profile) {
-                myName = profile.displayName;
-                myStatus = profile.status ?? "";
-                document.getElementById("input-name").value = myName;
-            }
-
-            const cRes = await fetch(`${WORKER_URL}/agent/${myHash}/contacts`);
-            contacts = await cRes.json();
-        }
-
-        async function saveProfile() {
-            await fetch(`${WORKER_URL}/agent/${myHash}/profile`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ displayName: myName, hashedPhone: myHash, status: myStatus }),
-            });
-        }
-
-        function formatBytes(bytes) {
-            if (bytes < 1024) return `${bytes} B`;
-            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-        }
-
-        async function startSession() {
-            myName = document.getElementById("input-name").value.trim();
-            myStatus = document.getElementById("input-status").value.trim();
-            const phone = document.getElementById("input-phone").value;
-            myHash = await hashPhone(phone);
-            if (!myHash) return;
-
-            document.getElementById("setup-overlay").classList.add("hidden");
-            document.getElementById("user-name-display").textContent = myName;
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        myLat = pos.coords.latitude;
-                        myLng = pos.coords.longitude;
-                        onLocation(myLat, myLng);
-                        connectAgent();
-                    },
-                    () => { toast("GPS denied — proximity unavailable", "error"); },
-                    { enableHighAccuracy: true, timeout: 8000 }
-                );
-            } else {
-                toast("GPS not supported", "error");
-            }
-        }
-
-        // LOCATION STUFF
-        function onLocation(lat, lng) {
-            const geohash = encodeGeohash(lat, lng);
-
-            if (currentGeohash !== geohash) {
-                currentGeohash = geohash;
-                connectCell(lat, lng);
-            }
-        }
-
-        function encodeGeohash(lat, lng, precision = 5) {
-            const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
-            let idx = 0, bit = 0, evenBit = true, geohash = "";
-            let [latMin, latMax, lngMin, lngMax] = [-90, 90, -180, 180];
-            while (geohash.length < precision) {
-                if (evenBit) {
-                    const m = (lngMin + lngMax) / 2;
-                    lng >= m ? (idx = idx * 2 + 1, lngMin = m) : (idx *= 2, lngMax = m);
-                } else {
-                    const m = (latMin + latMax) / 2;
-                    lat >= m ? (idx = idx * 2 + 1, latMin = m) : (idx *= 2, latMax = m);
-                }
-                evenBit = !evenBit;
-                if (++bit === 5) { geohash += BASE32[idx]; bit = 0; idx = 0; }
-            }
-            return geohash;
-        }
-
-
-        function connectCell(lat, lng) {
-            if (cellWs) cellWs.close();
-
-            cellWs = new WebSocket(`${WS_URL}/cell?lat=${lat}&lng=${lng}&id=${myHash}&name=${encodeURIComponent(myName)}&status=${encodeURIComponent(myStatus)}`);
-
-            cellWs.onopen = () => {
-                // sendCellUpdate();
-                setConnected(true);
-            };
-
-            cellWs.onmessage = (evt) => {
-                const msg = JSON.parse(evt.data);
-                if (msg.type === "presence") {
-                    nearbyPeers = msg.peers || [];
-                    renderNearby();
-                }
-            };
-            cellWs.onclose = () => {
-                setConnected(false);
-                nearbyPeers = [];
-                renderNearby();
-                setTimeout(() => { if (myLat) connectCell(myLat, myLng); }, 3000);
-            };
-            cellWs.onerror = () => setConnected(false);
-
-            setInterval(() => {
-                if (cellWs?.readyState === WebSocket.OPEN)
-                    cellWs.send(JSON.stringify({ type: "ping", peerId: myHash }));
-            }, 15000);
-        }
-
-        // function sendCellUpdate() {
-        //     if (lat === null || long === null) {
-        //         toast("No GPS coords found — try again", "error");
-        //         showScreen("setup");
-        //     };
-        //     cellWs.send(JSON.stringify({
-        //         type: "join",
-        //         hashedID: myHash,
-        //         lat: lat,
-        //         lng: long,
-        //         displayName: myName,
-        //     }));
-        // }
-
-        // AGENT
-        function connectAgent() {
-            console.log("connectAgent called")
-            agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
-            agentWs.onopen = () => {
-                loadContacts();
-                saveProfile();
-            };
-            agentWs.onmessage = (evt) => {
-                const msg = JSON.parse(evt.data);
-                if (msg.type === "state") handleAgentState(msg.state);
-                if (msg.type === "chunk") handleChunk(msg);
-                if (msg.type === "transfer_complete") handleTransferComplete(msg);
-                if (msg.type === "transfer_sent") handleTransferSent();
-                if (msg.type === "offer_declined") handleOfferDeclined();
-                if (msg.type === "contact_nearby") handleContactNearby(msg.hash, msg.name);
-                if (msg.type === "session_ready") handleSessionReady(msg.sessionId, msg.peerName, msg.peerHash);
-            };
-            agentWs.onclose = () => setTimeout(connectAgent, 3000);
-        }
-
-        async function loadContacts() {
-            try {
-                const res = await fetch(`${WORKER_URL}/agent/${myHash}/contacts`);
-                contacts = await res.json();
-                renderContacts();
-                renderNearby();
-            } catch { }
-        }
-
-        async function saveProfile() {
-            try {
-                await fetch(`${WORKER_URL}/agent/${myHash}/profile`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ displayName: myName, hashedPhone: myHash, status: myStatus }),
-                });
-            } catch { }
-        }
-
-        // CONTACTS
-        async function addContact() {
-            const input = document.getElementById("add-contact-input");
-            const phone = input.value.trim();
-            if (!phone) return;
-            const hash = await hashPhone(phone);
-            if (!hash) { toast("Invalid phone number", "error"); return; }
-            if (contacts.find(c => c.hashedPhone === hash)) { toast("Already added", "info"); return; }
-
-            const name = prompt(`Display name for ${phone}?`);
-            if (!name) return;
-
-            try {
-                await fetch(`${WORKER_URL}/agent/${myHash}/contacts`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ hashedPhone: hash, displayName: name }),
-                });
-                contacts.push({ hashedPhone: hash, displayName: name });
-                input.value = "";
-                renderContacts();
-                renderNearby();
-                toast(`${name} added`, "success");
-            } catch { toast("Failed to add contact", "error"); }
-        }
-
-        async function removeContact(hash) {
-            try {
-                await fetch(`${WORKER_URL}/agent/${myHash}/contacts/${hash}`, { method: "DELETE" });
-                contacts = contacts.filter(c => c.hashedPhone !== hash);
-                renderContacts();
-                renderNearby();
-                toast("Contact removed", "info");
-            } catch { toast("Failed to remove", "error"); }
-        }
-
-        function renderContacts() {
-            const list = document.getElementById("contacts-list");
-            document.getElementById("contacts-count").textContent = contacts.length;
-            const colors = ["av-gold", "av-green", "av-blue", "av-red"];
-
-            if (contacts.length === 0) {
-                list.innerHTML = `<div class="empty-state">No contacts yet.<br>Add a phone number above.</div>`;
-                return;
-            }
-
-            list.innerHTML = contacts.map((c, i) => `
-    <div class="contact-row">
-      <div class="contact-avatar ${colors[i % 4]}">${c.displayName.slice(0, 1).toUpperCase()}</div>
-      <div class="contact-info">
-        <div class="contact-name">${c.displayName}</div>
-        <div class="contact-hash">${c.hashedPhone.slice(0, 8)}…</div>
-      </div>
-      <div class="contact-actions">
-        <button class="btn-icon session" onclick="initiateSession('${c.hashedPhone}','${c.displayName.replace(/'/g, "\\'")}')">session</button>
-        <button class="btn-icon danger" onclick="removeContact('${c.hashedPhone}')">×</button>
-      </div>
-    </div>
-  `).join("");
-        }
-
-        // PROXIMITY AND NEARBY FUNCTIONALITY
-        function renderNearby() {
-            const grid = document.getElementById("nearby-grid");
-            document.getElementById("nearby-count").textContent = nearbyPeers.length;
-            const contactHashes = new Set(contacts.map(c => c.hashedPhone));
-
-            if (nearbyPeers.length === 0) {
-                grid.innerHTML = `<div class="nearby-empty">📡<br>Searching for<br>people in your cell…</div>`;
-                return;
-            }
-
-            grid.innerHTML = nearbyPeers
-                .filter(p => p.hashedID !== myHash)
-                .map(p => {
-                    const isContact = contactHashes.has(p.hashedID);
-                    const initials = p.displayName.slice(0, 2).toUpperCase();
-                    return `
-        <div class="nearby-card ${isContact ? "is-contact" : ""}">
-          ${isContact ? `<div class="nearby-card-badge">contact</div>` : ""}
-          <div class="nearby-card-avatar">${initials}</div>
-          <div class="nearby-card-name">${p.displayName}</div>
-          <div class="nearby-card-status">${p.status || ""}</div>
-          <div class="nearby-card-actions">
-            <button class="btn-icon session" onclick="initiateSession('${p.hashedID}','${p.displayName.replace(/'/g, "\\'")}')">session</button>
-          </div>
-        </div>
-      `;
-                }).join("");
-        }
-
-        // ALL OF THE SESSION STUFF
-        // SESSION MANAGEMENT
-        function initiateSession(targetHash, targetName) {
-            sessionPeerName = targetName;
-            sessionPeerHash = targetHash;
-            agentWs.send(JSON.stringify({
-                type: "invite_session",
-                targetHash,
-                myHash,
-                myName,
-            }));
-            toast(`Session invite sent to ${targetName}…`, "info");
-        }
-
-        function handleSessionReady(sessionId, peerName, peerHash) {
-            currentSessionId = sessionId;
-            sessionPeerName = peerName || sessionPeerName;
-            sessionPeerHash = peerHash || sessionPeerHash;
-            connectSession(sessionId);
-            openSessionPanel(sessionPeerName);
-        }
-
-        function openSessionPanel(peerName) {
-            document.getElementById("session-idle").classList.add("hidden");
-            document.getElementById("session-active").classList.add("visible");
-            document.getElementById("session-peer-name").textContent = peerName;
-            document.getElementById("session-peer-avatar").textContent = peerName.slice(0, 1).toUpperCase();
-            document.getElementById("messages-wrap").innerHTML = "";
-        }
-
-        function endSession() {
-            if (sessionWs) sessionWs.close();
-            sessionWs = null;
-            currentSessionId = null;
-            document.getElementById("session-active").classList.remove("visible");
-            document.getElementById("session-idle").classList.remove("hidden");
-            agentWs.send(JSON.stringify({ type: "reject_session" }));
-        }
-
-        // SESSION INVITES
-        function handleContactNearby(hash, name) {
-            pendingNearbyHash = hash;
-            pendingNearbyName = name;
-            document.getElementById("nearby-contact-name").textContent = name;
-            document.getElementById("nearby-contact-sub").textContent = "just entered your proximity cell";
-            document.getElementById("contact-nearby-overlay").classList.add("visible");
-        }
-
-        function startSessionWithNearby() {
-            document.getElementById("contact-nearby-overlay").classList.remove("visible");
-            if (pendingNearbyHash) initiateSession(pendingNearbyHash, pendingNearbyName);
-        }
-
-        function handleAgentState(state) {
-            agentState = state;
-            if (state.status === "receiving" && state.incomingOffer) showFileOffer(state.incomingOffer);
-            if (state.status === "idle") {
-                document.getElementById("file-offer-overlay").classList.remove("visible");
-            }
-            if (state.incomingSession) showSessionInvite(state.incomingSession);
-        }
-
-        function showSessionInvite(invite) {
-            document.getElementById("invite-from-name").textContent = invite.fromName;
-            document.getElementById("session-invite-overlay").classList.add("visible");
-        }
-
-        function acceptSessionInvite() {
-            document.getElementById("session-invite-overlay").classList.remove("visible");
-            agentWs.send(JSON.stringify({
-                type: "accept_session",
-                sessionId: agentState.incomingSession?.sessionId,
-            }));
-        }
-
-        function rejectSessionInvite() {
-            document.getElementById("session-invite-overlay").classList.remove("visible");
-            agentWs.send(JSON.stringify({ type: "reject_session" }));
-        }
-
-        // SESSION WEBSOCKET
-        function connectSession(sessionId) {
-            if (sessionWs) sessionWs.close();
-            sessionWs = new WebSocket(
-                `${WS_URL}/session/${sessionId}?hash=${myHash}&name=${encodeURIComponent(myName)}`
-            );
-
-            sessionWs.onmessage = (evt) => {
-                const msg = JSON.parse(evt.data);
-
-                if (msg.type === "history") {
-                    document.getElementById("messages-wrap").innerHTML = "";
-                    msg.messages.forEach(m => appendMessage(m));
-                }
-
-                if (msg.type === "message") appendMessage(msg.message);
-
-                if (msg.type === "joined" || msg.type === "left") {
-                    document.getElementById("session-participants").textContent =
-                        `${msg.participants} connected`;
-                    toast(`${msg.name} ${msg.type === "joined" ? "joined" : "left"}`, "info");
-                }
-
-                if (msg.type === "ai_typing") {
-                    aiBuffer = "";
-                    aiMsgEl = createAIBubble();
-                }
-
-                if (msg.type === "ai_token") {
-                    aiBuffer += msg.token;
-                    if (aiMsgEl) aiMsgEl.textContent = aiBuffer;
-                    scrollMessages();
-                }
-
-                if (msg.type === "ai_done") {
-                    aiBuffer = "";
-                    aiMsgEl = null;
-                    scrollMessages();
-                }
-
-                if (msg.type === "ai_error") {
-                    toast("AI unavailable", "error");
-                    if (aiMsgEl) aiMsgEl.closest(".msg-group")?.remove();
-                    aiMsgEl = null;
-                }
-            };
-        }
-
-        function sendMessage() {
-            const input = document.getElementById("session-input");
-            const text = input.value.trim();
-            if (!text || !sessionWs || sessionWs.readyState !== WebSocket.OPEN) return;
-            sessionWs.send(JSON.stringify({ type: "message", text }));
-            input.value = "";
-            input.style.height = "40px";
-        }
-
-        function handleInputKey(e) {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        }
-
-        function autoResize(el) {
-            el.style.height = "40px";
-            el.style.height = Math.min(el.scrollHeight, 120) + "px";
-        }
-
-        // MESSAGING
-        function appendMessage(msg) {
-            const wrap = document.getElementById("messages-wrap");
-            const isMe = msg.fromHash === myHash;
-            const isAI = msg.fromHash === "ai";
-            const cls = isMe ? "me" : isAI ? "ai" : "them";
-            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-            const group = document.createElement("div");
-            group.className = "msg-group";
-            group.innerHTML = `
-    <div class="msg-group-header">
-      <span class="msg-sender ${cls}">${isMe ? "You" : msg.fromName}</span>
-      <span class="msg-time">${time}</span>
-    </div>
-    <div class="msg-bubble ${cls}">${escHtml(msg.content)}</div>
-  `;
-            wrap.appendChild(group);
-            scrollMessages();
-        }
-
-        function createAIBubble() {
-            const wrap = document.getElementById("messages-wrap");
-            const group = document.createElement("div");
-            group.className = "msg-group";
-            group.innerHTML = `
-    <div class="msg-group-header">
-      <span class="msg-sender ai">AI</span>
-      <div class="ai-dots">
-        <div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div>
-      </div>
-    </div>
-    <div class="msg-bubble ai"></div>
-  `;
-            wrap.appendChild(group);
-            scrollMessages();
-            return group.querySelector(".msg-bubble");
-        }
-
-        function scrollMessages() {
-            const wrap = document.getElementById("messages-wrap");
-            wrap.scrollTop = wrap.scrollHeight;
-        }
-
-        function escHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                .replace(/\n/g, "<br>");
-        }
-
-        // FILE TRANSFER
-        function showFileOffer(offer) {
-            agentState = { ...agentState, incomingOffer: offer };
-            document.getElementById("offer-filename").textContent = offer.fileName;
-            document.getElementById("offer-meta").textContent =
-                `${formatBytes(offer.fileSize)} · from ${offer.fromName || offer.fromHash.slice(0, 8)}`;
-            document.getElementById("file-offer-overlay").classList.add("visible");
-            if (offerTimeout) clearTimeout(offerTimeout);
-            offerTimeout = setTimeout(() => {
-                if (agentState.incomingOffer?.transferId === offer.transferId) {
-                    rejectOffer();
-                    toast("Offer expired", "info");
-                }
-            }, 60_000);
-        }
-
-        function acceptOffer() {
-            const offer = agentState.incomingOffer;
-            if (!offer) return;
-            document.getElementById("file-offer-overlay").classList.remove("visible");
-            agentWs.send(JSON.stringify({
-                type: "accept_drop",
-                transferId: offer.transferId,
-                fromAgentId: offer.fromHash,
-            }));
-        }
-
-        function rejectOffer() {
-            document.getElementById("file-offer-overlay").classList.remove("visible");
-            agentWs.send(JSON.stringify({ type: "reject_drop" }));
-        }
-
-        function handleChunk({ index, data, total, fileName, transferId }) {
-            if (!inboundChunks[transferId])
-                inboundChunks[transferId] = { chunks: [], fileName, total };
-            inboundChunks[transferId].chunks[index] = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-        }
-
-        function handleTransferComplete({ transferId, fileName }) {
-            const t = inboundChunks[transferId];
-            if (!t) return;
-            const blob = new Blob(t.chunks, { type: "application/octet-stream" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = t.fileName || fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
-            delete inboundChunks[transferId];
-            toast(`✓ ${t.fileName} saved`, "success");
-        }
-
-        function handleTransferSent() {
-            toast("File sent!", "success");
-        }
-
-        function handleOfferDeclined() {
-            toast("Transfer declined", "error");
-        }
-
-        // HELPERS
-        function setConnected(on) {
-            const pill = document.getElementById("conn-pill");
-            pill.className = "conn-pill" + (on ? " live" : "");
-            document.getElementById("conn-label").textContent = on ? "live" : "offline";
-        }
-
-        function toggleSection(id) {
-            document.getElementById(id).classList.toggle("collapsed");
-        }
-
-        function formatBytes(b) {
-            if (b < 1024) return `${b} B`;
-            if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
-            return `${(b / 1048576).toFixed(1)} MB`;
-        }
-
-        function toast(msg, type = "info") {
-            const wrap = document.getElementById("toast-wrap");
-            const el = document.createElement("div");
-            el.className = `toast ${type}`;
-            el.textContent = msg;
-            wrap.appendChild(el);
-            setTimeout(() => el.remove(), 4000);
-        }
-    </script>
-</body>
-
-</html> -->
