@@ -507,7 +507,7 @@
             let pendingHash;
             let pendingName;
 
-            const hashPhone = async (string) => {
+            const hashPhone = async (phone) => {
                 const n = phone.replace(/\D/g, "");
                 if (n.length < 7) return null;
                 const b = await crypto.subtle.digest(
@@ -527,7 +527,7 @@
                 checkReady();
             };
 
-            const checkReady = () => {
+            function checkReady() {
                 document.getElementById("enter-btn").disabled =
                     !(document.getElementById("input-name").value.trim() &&
                         document.getElementById("input-phone").value.replace(/\D/g, "").length >= 7);
@@ -561,16 +561,16 @@
                 return s;
             }
 
-            const onLocation = () => {
+            function onLocation() {
                 const g = geohash(myLat, myLng);
                 document.getElementById("geohash-tag").textContent = g;
                 if (g !== currentGeohash) {
                     currentGeohash = g;
                     connectGeohashCell();
                 }
-            };
+            }
 
-            const connectGeohashCell = () => {
+            function connectGeohashCell() {
                 cellWs?.close();
                 cellWs = new WebSocket(
                     `${WS_URL}/cell?lat=${myLat}&lng=${myLng}&id=${myHash}&name=${encodeURIComponent(myName)}&status=${encodeURIComponent(myStatus)}`
@@ -597,9 +597,9 @@
                         cellWs.send(JSON.stringify({ type: "ping", peerId: myHash }));
                     }
                 }, 15000);
-            };
+            }
 
-            const connectAgent = () => {
+            function connectAgent() {
                 agentWs = new WebSocket(`${WS_URL}/agent/${myHash}`);
                 agentWs.onopen = () => { loadContacts(); saveProfile(); };
                 agentWs.onclose = () => setTimeout(connectAgent, 3000);
@@ -615,9 +615,9 @@
                         case "session_ready": onSessionReady(m.sessionId, m.peerName, m.peerHash); break;
                     }
                 };
-            };
+            }
 
-            const connectSession = id => {
+            function connectSession(id) {
                 sessionWs?.close();
                 sessionWs = new WebSocket(`${WS_URL}/session/${id}?hash=${myHash}&name=${encodeURIComponent(myName)}`);
 
@@ -644,17 +644,17 @@
                             break;
                     }
                 };
-            };
+            }
 
-            const loadContacts = async () => {
+            async function loadContacts() {
                 try {
                     contacts = await (await fetch(`${WORKER_URL}/agent/${myHash}/contacts`)).json();
                     renderContacts();
                     renderNearby();
                 } catch { }
-            };
+            }
 
-            const saveProfile = async () => {
+            async function saveProfile() {
                 try {
                     await fetch(`${WORKER_URL}/agent/${myHash}/profile`, {
                         method: "POST",
@@ -662,9 +662,9 @@
                         body: JSON.stringify({ displayName: myName, hashedPhone: myHash, status: myStatus })
                     });
                 } catch { }
-            };
+            }
 
-            const addContact = async () => {
+            async function addContact() {
                 const input = document.getElementById("input-contact");
                 const phone = input.value.trim();
 
@@ -693,9 +693,9 @@
                 } catch {
                     toast("failed to add contact", "err");
                 }
-            };
+            }
 
-            const removeContact = async (hash) => {
+            async function removeContact(hash) {
                 try {
                     await fetch(`${WORKER_URL}/agent/${myHash}/contacts/${hash}`, { method: "DELETE" });
 
@@ -706,7 +706,7 @@
                 } catch {
                     toast("failed to remove contact", "err");
                 }
-            };
+            }
 
             function renderContacts() {
                 const nearbyHashes = new Set(peers.map(p => p.hashedID));
@@ -807,25 +807,25 @@
                 }
             }
 
-            const acceptOffer = () => {
+            function acceptOffer() {
                 const o = agentState.incomingOffer;
                 if (!o) return;
                 overlay("file-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "accept_drop", transferId: o.transferId, fromAgentId: o.fromHash }));
-            };
+            }
 
-            const rejectOffer = () => {
+            function rejectOffer() {
                 overlay("file-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "reject_drop" }));
-            };
+            }
 
             // these are for streaming file transfers!
-            const onChunk = ({ index, data, fileName, transferId }) => {
+            function onChunk({ index, data, fileName, transferId }) {
                 if (!inbound[transferId]) inbound[transferId] = { chunks: [], fileName };
                 inbound[transferId].chunks[index] = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-            };
+            }
 
-            const onDone = ({ transferId, fileName }) => {
+            function onDone({ transferId, fileName }) {
                 const transfer = inbound[transferId];
                 if (!transfer) return;
 
@@ -842,59 +842,61 @@
 
                 delete inbound[transferId];
                 toast(`${transfer.fileName || fileName} saved`, "ok");
-            };
+            }
 
-            const acceptInvite = () => {
+            function acceptInvite() {
                 overlay("invite-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "accept_session", sessionId: agentState.incomingSession?.sessionId }));
-            };
+            }
 
             // i'm not sure this is getting broadcasted back
-            const rejectInvite = () => {
+            function rejectInvite() {
                 overlay("invite-overlay", 0);
                 agentWs.send(JSON.stringify({ type: "reject_session" }));
-            };
+            }
 
-            const onNearby = (hash, name) => {
+            function onNearby(hash, name) {
                 pendingHash = hash; pendingName = name;
                 document.getElementById("nearby-who").textContent = name;
                 overlay("nearby-overlay", 1);
-            };
+            }
 
-            const startWithNearby = () => {
+            function startWithNearby() {
                 overlay("nearby-overlay", 0);
                 pendingHash && startSession(pendingHash, pendingName);
-            };
+            }
 
-            const setConnected = (on) => {
+            function setConnected(on) {
                 const connection = document.getElementById("conn-tag");
                 connection.textContent = on ? "live" : "offline"; connection.className = "tag" + (on ? " live" : "");
             }
 
-            const overlay = (id, on) => {
+            function overlay(id, on) {
                 document.getElementById(id).classList[on ? "add" : "remove"]("on");
             }
 
-            const scrollMessages = () => {
+            function scrollMessages() {
                 const messages = document.getElementById("messages");
                 messages.scrollTop = messages.scrollHeight;
-            };
+            }
 
-            const toast = (msg, type) => {
+            function toast(msg, type) {
                 const el = Object.assign(document.createElement("div"), { className: `toast ${type}`, textContent: msg });
                 document.getElementById("toasts").appendChild(el);
                 setTimeout(() => el.remove(), 4000); // i don't know if i'm happy with this timeout
-            };
+            }
 
             // looked this func up to make it easier to generate strings for inside single-quoted html
             const escapeQuotes = (s) => s.replace(/'/g, "\\'");
 
-            const safeHtml = (s) =>
+            function safeHtml(s) {
                 s
                     .replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
                     .replace(/>/g, "&gt;")
                     .replace(/\n/g, "<br>");
+            }
+
         </script>
 </body>
 
