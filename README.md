@@ -3,6 +3,11 @@ Find my friends but real-time collaboration. Original idea based on building a b
 
 Built on Cloudflare's Agent SDK and workers.
 
+KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
+- [ ] Ok so adding a contact is irrelevant because it's getting proximity regardless lol
+- [ ] Session starts but no text bubble pops up
+- [ ] The mobile frontend looks pretty shit and functions pretty awfully
+
 TODO
 - [ ] Validate phone numbers w 2FA for yours
 - [ ] Send an invite to the numbers you add rather than waiting for them to independently add you back

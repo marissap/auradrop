@@ -289,7 +289,8 @@
             border-style: dashed;
             max-width: 90%;
         }
-/* 
+
+        /* 
         #ir {
             display: flex;
             gap: 6px;
@@ -360,7 +361,7 @@
             background: #fff;
             font-size: 11px;
             animation: ti .2s ease,
-            to .2s 3.5s ease forwards;
+                to .2s 3.5s ease forwards;
         }
 
         .toast.ok {
@@ -557,6 +558,7 @@
             async function doSetup() {
                 myName = document.getElementById("input-name").value.trim();
                 myStatus = document.getElementById("input-status").value.trim();
+
                 myHash = await hashPhone(document.getElementById("input-phone").value);
                 if (!myHash) return;
                 document.getElementById("setup").style.display = "none";
@@ -607,7 +609,7 @@
                     if (m.type === "transfer_sent") toast("file sent!", "ok");
                     if (m.type === "offer_declined") toast("declined", "err");
                     if (m.type === "contact_nearby") onNearby(m.hash, m.name);
-                    if (m.type === "session_ready") onSessReady(m.sessionId, m.peerName, m.peerHash);
+                    if (m.type === "session_ready") onSessionReady(m.sessionId, m.peerName, m.peerHash);
                 };
             }
 
@@ -711,18 +713,18 @@
                 toast(`Invite sent to ${name}…`, "ok");
             }
 
-            function onSessReady(id, pN, pH) {
+            function onSessionReady(id, pN, pH) {
                 peerName = pN || peerName; peerHash = pH || peerHash;
                 connectSession(id);
                 document.getElementById("session-name").textContent = peerName;
                 document.getElementById("messages").innerHTML = "";
                 document.getElementById("idle").style.display = "none";
-                document.getElementById("sess").className = "on";
+                document.getElementById("session").className = "on";
             }
 
             function endSession() {
                 sessionWs?.close(); sessionWs = null;
-                document.getElementById("sess").className = "";
+                document.getElementById("session").className = "";
                 document.getElementById("idle").style.display = "";
                 agentWs.send(JSON.stringify({ type: "reject_session" }));
             }
