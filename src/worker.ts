@@ -14,6 +14,7 @@ import { Session } from "./session";
 
 export { GeoTarget, AuraDropAgent, Session };
 
+// i looked this up on the internet gis.stackexchange is lowkey goated
 function encodeGeohash(lat: number, lng: number, precision = 5): string {
   const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
   let idx = 0, bit = 0, evenBit = true, geohash = "";

@@ -12,6 +12,7 @@ export class Session implements DurableObject {
     private sessionId = "";
 
     constructor(private ctx: DurableObjectState, private env: Env) {
+        // i'm not sure this is relevant for a session if i am not bothering with history
         this.ctx.blockConcurrencyWhile(async () => {
             this.ctx.storage.sql.exec(`
         CREATE TABLE IF NOT EXISTS messages (

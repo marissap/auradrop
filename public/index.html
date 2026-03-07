@@ -251,6 +251,15 @@
             display: flex;
         }
 
+        #session-header {
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            height: 40px;
+            border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+
         #messages {
             flex: 1;
             overflow-y: auto;
@@ -267,6 +276,21 @@
             border-top: 1px solid #ddd;
             align-items: flex-end;
             flex-shrink: 0;
+        }
+
+        #msg-input {
+            flex: 1;
+            min-width: 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 6px 8px;
+            resize: none;
+            height: 34px;
+            max-height: 100px;
+            outline: none;
+            line-height: 1.4;
+            font-family: inherit;
+            font-size: 13px;
         }
 
         .msg-meta {
@@ -389,7 +413,7 @@
         @media (max-width: 700px) {
             #columns {
                 grid-template-columns: 1fr;
-                height: auto; 
+                height: auto;
             }
 
             #left {
@@ -483,7 +507,7 @@
 
         <div class="overlay" id="file-overlay">
             <div class="overlay-inner">
-                <strong id="offer-filename">file.zip</strong><small id="offer-info">0 KB</small>
+                <strong id="offer-filename">file.zip </strong><small id="offer-info">0 KB</small>
                 <div class="sheet-btns"><button class="primary" onclick="acceptOffer()">accept</button><button
                         onclick="rejectOffer()">decline</button></div>
             </div>
@@ -491,7 +515,7 @@
 
         <div class="overlay" id="invite-overlay">
             <div class="overlay-inner">
-                <strong id="invite-from">someone</strong><small>wants to start a session</small>
+                <strong id="invite-from">someone </strong> <small>wants to start a session</small>
                 <div class="sheet-btns"><button class="primary" onclick="acceptInvite()">join</button><button
                         onclick="rejectInvite()">decline</button></div>
             </div>
@@ -499,7 +523,7 @@
 
         <div class="overlay" id="nearby-overlay">
             <div class="overlay-inner">
-                <strong id="nearby-who">someone</strong><small> is nearby</small>
+                <strong id="nearby-who">someone </strong><small> is nearby</small>
                 <div class="sheet-btns"><button class="primary" onclick="startWithNearby()">start session</button>
                     <button onclick="overlay('nearby-overlay',0)">dismiss</button>
                 </div>
@@ -646,24 +670,30 @@
             }
 
             function connectSession(id) {
+
+                console.log("frontend: connecting to session:", id);
+
                 sessionWs?.close();
                 sessionWs = new WebSocket(`${WS_URL}/session/${id}?hash=${myHash}&name=${encodeURIComponent(myName)}`);
 
                 sessionWs.onmessage = e => {
-                    const m = JSON.parse(e.data);
-                    switch (m.type) {
+                    const msg = JSON.parse(e.data);
+                    switch (msg.type) {
                         case "history":
                             document.getElementById("messages").innerHTML = "";
-                            m.messages.forEach(addMsg);
+                            msg.messages.forEach(addMsg);
                             break;
-                        case "message": addMsg(m.message); break;
-                        case "joined":
-                        case "left":
-                            document.getElementById("session-count").textContent = `${m.participants} connected`;
-                            toast(`${m.name} ${m.type}`, "ok");
-                            break;
+                        case "message":
+                            console.log("IN SWTICH STATEMENT msg:", msg);
+                            console.log("IN SWITCH STATEMENT msg.message:", msg.message);
+                            addMsg(msg.message); break;
+                        // case "joined":
+                        // case "left":
+                        //     document.getElementById("session-count").textContent = `${msg.participants} connected`;
+                        //     toast(`${msg.name} ${msg.type}`, "ok");
+                        //     break;
                         case "ai_typing": aiBuffer = ""; aiEl = makeAIBubble(); break;
-                        case "ai_token": aiEl && (aiBuffer += m.token, aiEl.textContent = aiBuffer, scrollMessages()); break;
+                        case "ai_token": aiEl && (aiBuffer += msg.token, aiEl.textContent = aiBuffer, scrollMessages()); break;
                         case "ai_done": aiEl = null; scrollMessages(); break;
                         case "ai_error":
                             toast("AI unavailable", "err");
@@ -801,6 +831,11 @@
             }
 
             function addMsg(msg) {
+                // console.log("addMsg called, raw message received:", msg.message);
+                console.log("checking content, raw message received:", msg.content);
+                console.log("content check:", msg, msg.content);
+                console.log("snapshot:", JSON.parse(JSON.stringify(msg)));
+                console.log(Object.keys(msg));
                 const isMe = msg.fromHash === myHash;
                 const isAI = msg.fromHash === "ai";
                 const div = document.createElement("div");
@@ -817,10 +852,11 @@
                 div.innerHTML = `<div class="msg-meta">AI · now</div><div class="bubble ai"></div>`;
                 document.getElementById("messages").appendChild(div);
                 scrollMessages();
-                return dov.querySelector(".bubble");
+                return div.querySelector(".bubble");
             }
 
             function onState(state) {
+                agentState = state;
                 if (state.status === "receiving" && state.incomingOffer) {
                     document.getElementById("offer-filename").textContent = state.incomingOffer.fileName;
                     document.getElementById("offer-info").textContent = `from ${state.incomingOffer.fromName || state.incomingOffer.fromHash.slice(0, 8)}`;
@@ -919,11 +955,11 @@
                 setTimeout(() => el.remove(), 4000); // i don't know if i'm happy with this timeout
             }
 
-            // looked this func up to make it easier to generate strings for inside single-quoted html
+            // looked this up to make sure whatever people typed in doesn't completely fuck the website 
             const escapeQuotes = (s) => s.replace(/'/g, "\\'");
 
             function safeHtml(s) {
-                s
+                return s
                     .replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
                     .replace(/>/g, "&gt;")
