@@ -559,7 +559,7 @@
 
             const hashPhone = async (phone) => {
                 const n = phone.replace(/\D/g, "");
-                if (n.length < 7) return null;
+                if (n.length < 7) return null; // this is not enough validation but that's already in a todo item
                 const b = await crypto.subtle.digest(
                     "SHA-256",
                     new TextEncoder().encode(n)
