@@ -599,7 +599,8 @@
                     : toast("GPS not supported", "err");
             }
 
-            // i looked this function up on the internet lol hope it works!!
+            // this is the same function as the one in worker.ts i just made all the variable names shorter
+            // cause this file is crazy long and i don't like duplicate code
             function geohash(lat, lng, p = 5) {
                 const B = "0123456789bcdefghjkmnpqrstuvwxyz";
                 let i = 0, b = 0, e = true, s = "", la = -90, lb = 90, lo = -180, lp = 180;
