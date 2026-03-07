@@ -20,6 +20,7 @@ Live session with a friend and AI
 ------------
 
 KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
+- [ ] ONE TIME CODE FOR PHONE NUMBER VERIFICATION
 - [ ] Ok so adding a contact is irrelevant because it's getting proximity regardless lol
 - [ ] Someone reloading or leaving the session doesn't trigger any notification for the other people in the session
 - [x] Session starts but no text bubble pops up
