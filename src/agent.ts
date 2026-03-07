@@ -158,6 +158,13 @@ export class AuraDropAgent implements DurableObject {
             return new Response("ok", { headers: cors });
         }
 
+        if (url.pathname.endsWith("/rpc/sessionAccepted") && req.method === "POST") {
+            const { sessionId, peerHash, peerName } = await req.json() as { sessionId: string; peerHash: string; peerName: string };
+            this.setState({ ...this.state, status: "in_session" });
+            this.broadcast({ type: "session_ready", sessionId, peerHash, peerName });
+            return new Response("ok", { headers: cors });
+        }
+
         if (url.pathname.endsWith("/rpc/offerDeclined") && req.method === "POST") {
             const { transferId } = await req.json() as { transferId: string };
             const meta = this.pendingTransfers.get(transferId);
@@ -210,7 +217,18 @@ export class AuraDropAgent implements DurableObject {
             case "invite_session":
                 await this.inviteSession(msg.targetHash as string, msg.myHash as string, msg.myName as string);
                 break;
-            case "accept_session":
+            case "accept_session":                
+                const inviter = this.env.AURA_AGENT.get(
+                    this.env.AURA_AGENT.idFromName(this.state.incomingSession!.fromHash));
+                await inviter.fetch(new Request("http://agent/rpc/sessionAccepted", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sessionId: this.state.incomingSession?.sessionId,
+                        peerHash: this.state.incomingSession!.fromHash,
+                        peerName: msg.myName,
+                    }),
+                }));
                 this.setState({ ...this.state, status: "in_session", incomingSession: null });
                 this.broadcast({ type: "session_ready", sessionId: msg.sessionId });
                 break;
@@ -291,8 +309,5 @@ export class AuraDropAgent implements DurableObject {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId, fromHash: myHash, fromName: myName }),
         }));
-
-        this.broadcast({ type: "session_ready", sessionId });
-        this.setState({ ...this.state, status: "in_session" });
     }
 }
