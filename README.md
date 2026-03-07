@@ -1,7 +1,7 @@
 ### AuraDrop
 Find my friends but real-time collaboration. Original idea based on building a better airdrop based on GPS proximity rather than bluetooth (because it fails so frequently). I often think about how find my friends could be even better, not just a map of location, but something that facilitates interaction and allows for serendipitous social iterations. Wanted to integrate real time proximity association.
 
-Built on Cloudflare's Agent SDK and workers.
+Built with Cloudflare's Durable Objects.
 
 ------------
 
