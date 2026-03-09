@@ -66,7 +66,7 @@
             padding: 10px 12px;
         }
 
-        container {
+        .container {
             display: flex;
             align-items: center;
             gap: 8px
@@ -164,6 +164,16 @@
 
         .item:hover .item-actions {
             display: flex;
+        }
+
+        .drop-file {
+            border: 1px solid #00e5ff;
+            border-radius: 4px;
+            padding: 6px 10px;
+            color: #00e5ff;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight:500;
         }
 
         .tag {
@@ -775,7 +785,13 @@
                         const isNearby = nearbyHashes.has(c.hashedPhone);
                         // i'd really rather use DOM methods here like createElement rather than inline html but that's fine for now
                         const sessionBtn = isNearby
-                            ? `<button onclick="startSession('${c.hashedPhone}','${escapeQuotes(c.displayName)}')">session</button>`
+                            ? `
+                            <button onclick="startSession('${c.hashedPhone}','${escapeQuotes(c.displayName)}')">session</button>
+                            <label class="drop-file">
+                                drop file
+                                <input type="file" style="display:none" onchange="sendFile('${c.hashedPhone}','${escapeQuotes(c.displayName)}',this)">
+                            </label>
+                            `
                             : `<span class="muted" style="font-size:11px">not nearby</span>`;
                         return `<div class="item">
           <span class="item-name">${c.displayName}</span>
@@ -907,6 +923,41 @@
 
                 delete inbound[transferId];
                 toast(`${transfer.fileName || fileName} saved`, "ok");
+            }
+
+            async function sendFile(targetHash, targetName, input) {
+                const file = input.files[0];
+                if (!file) return;
+                input.value = "";
+
+                const CHUNK_SIZE = 64 * 1024;
+                const chunks = [];
+                for (let i = 0; i < Math.ceil(file.size / CHUNK_SIZE); i++) {
+                    const buffer = await file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE).arrayBuffer();
+                    const bytes = new Uint8Array(buffer);
+                    let binary = "";
+                    for (let j = 0; j < bytes.length; j++) binary += String.fromCharCode(bytes[j]);
+                    chunks.push(btoa(binary));
+                }
+
+                const res = await fetch(`${WORKER_URL}/agent/${myHash}/upload`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fileName: file.name, fileSize: file.size, chunks }),
+                });
+                const { transferId } = await res.json();
+
+                agentWs.send(JSON.stringify({
+                    type: "initiate_drop",
+                    targetHash,
+                    transferId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    myHash,
+                    myName,
+                }));
+
+                toast(`offer sent to ${targetName}`, "ok");
             }
 
             function acceptInvite() {
