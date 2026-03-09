@@ -173,7 +173,7 @@
             color: #00e5ff;
             cursor: pointer;
             font-size: 12px;
-            font-weight:500;
+            font-weight: 500;
         }
 
         .tag {
@@ -813,7 +813,11 @@
         <div class="card-name">${p.displayName}</div>
         <div class="card-status">${p.status || ""}</div>
         <button style="width:100%" onclick="startSession('${p.hashedID}','${escapeQuotes(p.displayName)}')">session</button>
-      </div>`).join("")
+        <label class="drop-file">
+            drop file
+            <input type="file" style="display:none" onchange="sendFile('${c.hashedPhone}','${escapeQuotes(c.displayName)}',this)">
+        </label>
+        </div>`).join("")
                     : `<span class="muted" style="grid-column:1/-1">searching…</span>`;
             }
 
