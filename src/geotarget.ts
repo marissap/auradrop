@@ -32,9 +32,18 @@ export class GeoTarget implements DurableObject {
 
         this.broadcastPresence();
 
-        server.addEventListener("message", () => {
+        server.addEventListener("message", (evt) => {
             const peer = this.peers.get(hashedID);
             if (peer) peer.lastSeen = Date.now();
+
+            const msg = JSON.parse(evt.data as string);
+            if (msg.type === "status_update") {
+                const peer = this.peers.get(hashedID);
+                if (peer) {
+                    peer.status = msg.status;
+                    this.broadcastPresence();
+                }
+            }
         });
 
         server.addEventListener("close", () => {

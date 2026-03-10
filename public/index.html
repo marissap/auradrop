@@ -473,6 +473,7 @@
             <div class="container">
                 <span class="tag" id="geohash-tag">—</span>
                 <span class="muted" id="user-name">—</span>
+                <span class="muted" id="user-status"></span>
             </div>
         </nav>
         <div id="columns">
@@ -586,6 +587,16 @@
                 document.getElementById("hash-hint").textContent = h ? `→ ${h}` : "";
                 checkReady();
             };
+            document.getElementById("user-status").onclick = () => {
+                const newStatus = prompt("Update status:", myStatus);
+                if (newStatus === null) return;
+                myStatus = newStatus;
+                document.getElementById("user-status").textContent = newStatus || "";
+                saveProfile();
+                if (cellWs?.readyState === 1) {
+                    cellWs.send(JSON.stringify({ type: "status_update", status: myStatus }));
+                }
+            };
 
             function checkReady() {
                 document.getElementById("enter-btn").disabled =
@@ -601,6 +612,8 @@
                 if (!myHash) return;
                 document.getElementById("setup").style.display = "none";
                 document.getElementById("user-name").textContent = myName;
+                document.getElementById("user-status").textContent = myStatus || "";
+
                 connectAgent();
                 navigator.geolocation
                     ? navigator.geolocation.getCurrentPosition(
