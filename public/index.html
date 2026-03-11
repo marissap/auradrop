@@ -460,7 +460,7 @@
             </div>
             <div class="field"><label>status (optional)</label><input id="input-status" type="text"
                     placeholder="at the coffee shop" maxlength="40"></div>
-            <button class="primary" id="enter-btn" disabled onclick="doSetup()">enter auradrop →</button>
+            <button class="primary" id="enter-btn" type="submit" disabled onclick="doSetup()">enter auradrop →</button>
         </div>
     </div>
 
@@ -473,7 +473,7 @@
             <div class="container">
                 <span class="tag" id="geohash-tag">—</span>
                 <span class="muted" id="user-name">—</span>
-                <span class="muted" id="user-status"></span>
+                <span class="muted" id="user-status">set status...</span>
             </div>
         </nav>
         <div id="columns">
@@ -586,17 +586,7 @@
                 const h = await hashPhone(e.target.value);
                 document.getElementById("hash-hint").textContent = h ? `→ ${h}` : "";
                 checkReady();
-            };
-            document.getElementById("user-status").onclick = () => {
-                const newStatus = prompt("Update status:", myStatus);
-                if (newStatus === null) return;
-                myStatus = newStatus;
-                document.getElementById("user-status").textContent = newStatus || "";
-                saveProfile();
-                if (cellWs?.readyState === 1) {
-                    cellWs.send(JSON.stringify({ type: "status_update", status: myStatus }));
-                }
-            };
+            };        
 
             function checkReady() {
                 document.getElementById("enter-btn").disabled =
@@ -613,6 +603,16 @@
                 document.getElementById("setup").style.display = "none";
                 document.getElementById("user-name").textContent = myName;
                 document.getElementById("user-status").textContent = myStatus || "";
+                document.getElementById("user-status").onclick = () => {
+                const newStatus = prompt("update status:", myStatus);
+                if (newStatus === null) return;
+                myStatus = newStatus;
+                document.getElementById("user-status").textContent = newStatus || "set status...";
+                saveProfile();
+                if (cellWs?.readyState === 1) {
+                    cellWs.send(JSON.stringify({ type: "status_update", status: myStatus }));
+                }
+            };
 
                 connectAgent();
                 navigator.geolocation
