@@ -199,6 +199,12 @@
             font-size: 11px;
         }
 
+        .user-status {
+            box-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
         #setup {
             position: fixed;
             inset: 0;
@@ -586,7 +592,7 @@
                 const h = await hashPhone(e.target.value);
                 document.getElementById("hash-hint").textContent = h ? `→ ${h}` : "";
                 checkReady();
-            };        
+            };
 
             function checkReady() {
                 document.getElementById("enter-btn").disabled =
@@ -597,22 +603,25 @@
             async function doSetup() {
                 myName = document.getElementById("input-name").value.trim();
                 myStatus = document.getElementById("input-status").value.trim();
-
                 myHash = await hashPhone(document.getElementById("input-phone").value);
                 if (!myHash) return;
                 document.getElementById("setup").style.display = "none";
                 document.getElementById("user-name").textContent = myName;
-                document.getElementById("user-status").textContent = myStatus || "";
+                document.getElementById("user-status").textContent = myStatus || "set status...";
+
                 document.getElementById("user-status").onclick = () => {
-                const newStatus = prompt("update status:", myStatus);
-                if (newStatus === null) return;
-                myStatus = newStatus;
-                document.getElementById("user-status").textContent = newStatus || "set status...";
-                saveProfile();
-                if (cellWs?.readyState === 1) {
-                    cellWs.send(JSON.stringify({ type: "status_update", status: myStatus }));
-                }
-            };
+                    const newStatus = prompt("update status:", myStatus);
+                    if (newStatus === null) return;
+                    myStatus = newStatus;
+                    document.getElementById("user-status").textContent = newStatus || "set status...";
+
+                    console.log("after setting, value is:", document.getElementById("user-status").textContent);
+
+                    saveProfile();
+                    if (cellWs?.readyState === 1) {
+                        cellWs.send(JSON.stringify({ type: "status_update", status: myStatus }));
+                    }
+                };
 
                 connectAgent();
                 navigator.geolocation
