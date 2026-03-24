@@ -19,7 +19,7 @@ Live session with a friend and AI
 
 ------------
 
-KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
+Priority ToDos
 - [ ] Validate phone numbers w 2FA
 - [ ] Someone reloading or leaving the session doesn't trigger any notification for the other people in the session
 - [x] Session starts but no text bubble pops up
@@ -28,7 +28,7 @@ KNOWN BUGS (REALLY IT JUST DOESN'T WORK YET LOL)
 - [ ] The mobile frontend looks pretty shit and functions pretty awfully
 - [x] Do something with the status and allow it to be updated
 
-TODO
+Backlog
 - [ ] Slow down how fast the AI response is streamed
 - [ ] Add back the airdrop like file transfer option (in session or outside it?)
 - [ ] Send an invite to the numbers you add rather than waiting for them to independently add you back
