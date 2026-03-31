@@ -87,14 +87,31 @@ async function doSetup() {
 
   el.setup.style.display = "none";
   el.userName.textContent = myName;
-  el.userStatus.textContent = myStatus || "set status...";
+  el.userStatus.textContent = myStatus || "";
+  if (!myStatus) {
+    el.userStatus.classList.add("empty");
+  } else {
+    el.userStatus.classList.remove("empty");
+  }
 
-  el.userStatus.addEventListener("click", async () => {
-    const newStatus = prompt("update status:", myStatus);
-    if (newStatus === null) return;
+  el.userStatus.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      el.userStatus.blur();
+    }
+  });
+
+  el.userStatus.addEventListener("blur", async () => {
+    const newStatus = el.userStatus.textContent.trim();
+    if (newStatus === myStatus) return;
 
     myStatus = newStatus;
-    el.userStatus.textContent = newStatus || "set status...";
+    el.userStatus.textContent = myStatus || "";
+    if (!myStatus) {
+      el.userStatus.classList.add("empty");
+    } else {
+      el.userStatus.classList.remove("empty");
+    }
 
     saveProfile();
     if (cellWs?.readyState === 1) {

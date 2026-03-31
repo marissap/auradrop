@@ -145,6 +145,25 @@ textarea {
   color: var(--muted);
 }
 
+#user-status[contenteditable="true"] {
+  display: inline-block;
+  min-width: 120px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  outline: none;
+  cursor: text;
+}
+
+#user-status[contenteditable="true"]:focus {
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px dashed var(--brand);
+}
+
+#user-status[contenteditable="true"]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+}
+
 .tag {
   border: 1px solid var(--border);
   border-radius: 999px;
